@@ -1,7 +1,6 @@
 //!
 
 use collections::{Map, Set};
-use ena::unify::UnificationTable;
 use grammar::repr::*;
 use lr1::build;
 use lr1::core::*;
@@ -17,7 +16,8 @@ mod merge;
 use self::merge::Merge;
 
 mod state_set;
-use self::state_set::StateSet;
+mod group;
+use self::group::*;
 
 pub struct LaneTableConstruct<'grammar> {
     grammar: &'grammar Grammar,
@@ -169,21 +169,10 @@ impl<'grammar> LaneTableConstruct<'grammar> {
         // Construct the initial states; each state will map to a
         // context-set derived from its row in the lane-table. This is
         // fallible, because a state may be internally inconstent.
-        //
-        // (To handle unification, we also map each state to a
-        // `StateSet` that is its entry in the `ena` table.)
         let rows = table.rows()?;
-        let mut unify = UnificationTable::<StateSet>::new();
-        let mut state_sets = Map::new();
-        for (&state_index, context_set) in &rows {
-            let state_set = unify.new_key(context_set.clone());
-            state_sets.insert(state_index, state_set);
-            debug!("resolve_inconsistencies: state_index={:?}, state_set={:?}",
-                   state_index, state_set);
-        }
 
         // Now merge state-sets, cloning states where needed.
-        let mut merge = Merge::new(&table, &mut unify, states, &mut state_sets, inconsistent_state);
+        let mut merge = Merge::new(&table, states, inconsistent_state, rows);
         let beachhead_states = table.beachhead_states();
         for beachhead_state in beachhead_states {
             match merge.start(beachhead_state) {

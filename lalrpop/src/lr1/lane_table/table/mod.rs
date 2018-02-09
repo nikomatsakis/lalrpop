@@ -101,16 +101,6 @@ impl<'grammar> LaneTable<'grammar> {
                        .collect()
     }
 
-    pub fn context_set(&self, state: StateIndex) -> Result<ContextSet, OverlappingLookahead> {
-        let mut set = ContextSet::new(self.conflicts);
-        for (&(state_index, conflict_index), token_set) in &self.lookaheads {
-            if state_index == state {
-                set.insert(conflict_index, token_set)?;
-            }
-        }
-        Ok(set)
-    }
-
     /// Returns a map containing all states that appear in the table,
     /// along with the context set for each state (i.e., each row in
     /// the table, basically). Returns Err if any state has a conflict
