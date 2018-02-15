@@ -22,6 +22,12 @@ mod sub;
 mod sub_ascent;
 mod sub_table;
 
+/// test matching empty string
+mod empty;
+
+/// test matching empty string
+mod empty_tok;
+
 /// more interesting demonstration of parsing full expressions
 mod expr;
 
@@ -722,4 +728,19 @@ fn error_issue_278() {
             panic!("unexpected response from parser: {:?}", r);
         }
     }
+}
+
+#[test]
+fn test_empty() {
+    empty::parse_Empty("").unwrap();
+}
+
+mod empty_tok_lib {
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Tok;
+}
+
+#[test]
+fn test_empty_tok() {
+    empty_tok::parse_Empty(Vec::<empty_tok_lib::Tok>::new()).unwrap();
 }

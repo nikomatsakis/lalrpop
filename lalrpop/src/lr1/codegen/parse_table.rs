@@ -407,6 +407,9 @@ impl<'ascent, 'grammar, W: Write> CodeGenerator<'ascent, 'grammar, W, TableDrive
             let ty = self.types.nonterminal_type(nt).clone();
             rust!(self.out, "{}({}),", name, ty);
         }
+        if self.grammar.intern_token.is_some() {
+            rust!(self.out, "{}phantom_data(::std::marker::PhantomData<&'input ()>),", self.prefix);
+        }
         rust!(self.out, "}}");
         Ok(())
     }
