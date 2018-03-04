@@ -110,7 +110,7 @@ struct MatchBlock {
     spans: Map<TerminalLiteral, Span>,
 
     /// True if we should permit unrecognized literals to be used.
-    catch_all: bool,
+    catch_all: Option<Precedence>,
 }
 
 impl MatchBlock {
@@ -140,14 +140,14 @@ impl MatchBlock {
                             )?;
                         }
                         MatchItem::CatchAll(_) => {
-                            match_block.catch_all = true;
+                            match_block.catch_all = Some(Precedence(precedence));
                         }
                     }
                 }
             }
         } else {
             // no match block is equivalent to `match { _ }`
-            match_block.catch_all = true;
+            match_block.catch_all = Some(Precedence(0));
         }
         Ok(match_block)
     }
@@ -182,19 +182,22 @@ impl MatchBlock {
             return Ok(());
         }
 
-        if !self.catch_all {
-            return_err!(
-                span,
-                "terminal `{}` does not have a match mapping defined for it",
-                sym
-            );
-        }
+        let match_group_precedence = match self.catch_all {
+            Some(p) => p.0,
+            None => {
+                return_err!(
+                    span,
+                    "terminal `{}` does not have a match mapping defined for it",
+                    sym
+                );
+            }
+        };
 
         self.match_user_names
             .insert(TerminalString::Literal(sym.clone()));
 
         self.match_entries.push(MatchEntry {
-            precedence: sym.base_precedence(),
+            precedence: match_group_precedence * 2 + sym.base_precedence(),
             match_literal: sym.clone(),
             user_name: TerminalString::Literal(sym.clone()),
         });
