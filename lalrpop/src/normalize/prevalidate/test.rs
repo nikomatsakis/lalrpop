@@ -107,24 +107,6 @@ fn extern_after_match_token() {
 }
 
 #[test]
-fn match_catch_all_first_of_last() {
-    check_err(
-        r#"Catch all must be final item"#,
-        r#"grammar; match { _, "abc" }"#,
-        r#"                 ~         "#,
-    );
-}
-
-#[test]
-fn match_catch_all_last_of_first() {
-    check_err(
-        r#"Catch all must be final item"#,
-        r#"grammar; match { "abc", _ } else { "foo" }"#,
-        r#"                        ~                 "#,
-    );
-}
-
-#[test]
 fn expandable_expression_requires_named_variables() {
     check_err(
         r#"Using `<>` between curly braces \(e.g., `\{<>\}`\) only works when your parsed values have been given names \(e.g., `<x:Foo>`, not just `<Foo>`\)"#,
