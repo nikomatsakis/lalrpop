@@ -76,20 +76,6 @@ impl<'grammar> Validator<'grammar> {
                                 "extern (with custom tokens) and match definitions are mutually exclusive");
                         }
                     }
-
-                    // Ensure that the catch all is final item of final block
-                    for (contents_idx, match_contents) in data.contents.iter().enumerate() {
-                        for (item_idx, item) in match_contents.items.iter().enumerate() {
-                            if item.is_catch_all()
-                                && (contents_idx != &data.contents.len() - 1
-                                    || item_idx != &match_contents.items.len() - 1)
-                            {
-                                return_err!(item.span(), "Catch all must be final item");
-                            } else {
-                                println!("ok");
-                            }
-                        }
-                    }
                 }
 
                 GrammarItem::ExternToken(ref data) => {
