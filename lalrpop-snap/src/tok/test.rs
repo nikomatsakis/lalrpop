@@ -22,7 +22,7 @@ fn gen_test(input: &str, expected: Vec<(&str, Expectation)>) {
         match expectation {
             ExpectTok(expected_tok) => {
                 assert_eq!(Ok((expected_start, expected_tok, expected_end)), token);
-            }
+            },
             ExpectErr(expected_ec) => assert_eq!(
                 Err(Error {
                     location: expected_start,
@@ -333,11 +333,63 @@ fn where_with_lifetimes() {
     test(
         r#"where <'a,bar<'b,'c>>,baz;"#,
         vec![
-            (
-                r#"~~~~~~~~~~~~~~~~~~~~~~~~~ "#,
-                Where(vec![" <'a,bar<'b,'c>>", "baz"]),
-            ),
+            (r#"~~~~~                     "#, Where),
+            (r#"      ~                   "#, LessThan),
+            (r#"       ~~                 "#, Lifetime("'a")),
+            (r#"         ~                "#, Comma),
+            (r#"          ~~~             "#, MacroId("bar")),
+            (r#"             ~            "#, LessThan),
+            (r#"              ~~          "#, Lifetime("'b")),
+            (r#"                ~         "#, Comma),
+            (r#"                 ~~       "#, Lifetime("'c")),
+            (r#"                   ~      "#, GreaterThan),
+            (r#"                    ~     "#, GreaterThan),
+            (r#"                     ~    "#, Comma),
+            (r#"                      ~~~ "#, Id("baz")),
             (r#"                         ~"#, Semi),
+        ],
+    );
+}
+
+#[test]
+fn forall() {
+    test(
+        r#"for<'a, 'b, 'c> FnMut"#,
+        vec![
+            (r#"~~~                  "#, For),
+            (r#"   ~                 "#, LessThan),
+            (r#"    ~~               "#, Lifetime("'a")),
+            (r#"      ~              "#, Comma),
+            (r#"        ~~           "#, Lifetime("'b")),
+            (r#"          ~          "#, Comma),
+            (r#"            ~~       "#, Lifetime("'c")),
+            (r#"              ~      "#, GreaterThan),
+            (r#"                ~~~~~"#, Id("FnMut")),
+        ],
+    );
+}
+
+#[test]
+fn where_forall_fnmut_with_return_type() {
+    test(
+        r#"where F: for<'a> FnMut(&'a T) -> U;"#,
+        vec![
+            (r#"~~~~~                              "#, Where),
+            (r#"      ~                            "#, Id("F")),
+            (r#"       ~                           "#, Colon),
+            (r#"         ~~~                       "#, For),
+            (r#"            ~                      "#, LessThan),
+            (r#"             ~~                    "#, Lifetime("'a")),
+            (r#"               ~                   "#, GreaterThan),
+            (r#"                 ~~~~~             "#, Id("FnMut")),
+            (r#"                      ~            "#, LeftParen),
+            (r#"                       ~           "#, Ampersand),
+            (r#"                        ~~         "#, Lifetime("'a")),
+            (r#"                           ~       "#, Id("T")),
+            (r#"                            ~      "#, RightParen),
+            (r#"                              ~~   "#, MinusGreaterThan),
+            (r#"                                 ~ "#, Id("U")),
+            (r#"                                  ~"#, Semi),
         ],
     );
 }
@@ -380,6 +432,20 @@ fn equalsgreaterthancode_error_end_of_input_instead_of_closing_normal_character_
         r#"=>  'x"#,
         (r#"    ~ "#, ErrorCode::UnterminatedCharacterLiteral),
     )
+}
+
+#[test]
+fn equalsgreaterthancode_single_quote_literal() {
+    test(
+        r#"=> { println!('\''); },"#,
+        vec![
+            (
+                r#"~~~~~~~~~~~~~~~~~~~~~~ "#,
+                EqualsGreaterThanCode(r#" { println!('\''); }"#),
+            ),
+            (r#"                      ~"#, Comma),
+        ],
+    );
 }
 
 #[test]
@@ -513,7 +579,14 @@ fn where1() {
     test(
         r#"where <foo,bar>,baz;"#,
         vec![
-            (r#"~~~~~~~~~~~~~~~~~~~ "#, Where(vec![" <foo,bar>", "baz"])),
+            (r#"~~~~~               "#, Where),
+            (r#"      ~             "#, LessThan),
+            (r#"       ~~~          "#, Id("foo")),
+            (r#"          ~         "#, Comma),
+            (r#"           ~~~      "#, Id("bar")),
+            (r#"              ~     "#, GreaterThan),
+            (r#"               ~    "#, Comma),
+            (r#"                ~~~ "#, Id("baz")),
             (r#"                   ~"#, Semi),
         ],
     );
@@ -530,6 +603,84 @@ fn regex1() {
                 RegexLiteral(r##" #"#"" "#"##),
             ),
             (r#####"                    ~~~"#####, Id("rrr")),
+        ],
+    );
+}
+
+#[test]
+fn hash_token() {
+    test(r#" # "#, vec![(r#" ~ "#, Hash)]);
+}
+
+#[test]
+fn shebang_attribute_normal_text() {
+    test(
+        r#" #![Attribute] "#,
+        vec![(r#" ~~~~~~~~~~~~~ "#, ShebangAttribute("#![Attribute]"))],
+    );
+}
+
+#[test]
+fn shebang_attribute_special_characters_without_quotes() {
+    test(
+        r#" #![set width = 80] "#,
+        vec![
+            (
+                r#" ~~~~~~~~~~~~~~~~~~ "#,
+                ShebangAttribute("#![set width = 80]"),
+            ),
+        ],
+    );
+}
+
+#[test]
+fn shebang_attribute_special_characters_with_quotes() {
+    test(
+        r#" #![set width = "80"] "#,
+        vec![
+            (
+                r#" ~~~~~~~~~~~~~~~~~~~~ "#,
+                ShebangAttribute(r#"#![set width = "80"]"#),
+            ),
+        ],
+    );
+}
+
+#[test]
+fn shebang_attribute_special_characters_closing_sqbracket_in_string_literal() {
+    test(
+        r#" #![set width = "80]"] "#,
+        vec![
+            (
+                r#" ~~~~~~~~~~~~~~~~~~~~~ "#,
+                ShebangAttribute(r#"#![set width = "80]"]"#),
+            ),
+        ],
+    );
+}
+
+#[test]
+fn shebang_attribute_special_characters_opening_sqbracket_in_string_literal() {
+    test(
+        r#" #![set width = "[80"] "#,
+        vec![
+            (
+                r#" ~~~~~~~~~~~~~~~~~~~~~ "#,
+                ShebangAttribute(r#"#![set width = "[80"]"#),
+            ),
+        ],
+    );
+}
+
+#[test]
+fn shebang_attribute_special_characters_nested_sqbrackets() {
+    test(
+        r#" #![set width = [80]] "#,
+        vec![
+            (
+                r#" ~~~~~~~~~~~~~~~~~~~~ "#,
+                ShebangAttribute(r#"#![set width = [80]]"#),
+            ),
         ],
     );
 }

@@ -1,4 +1,4 @@
-use intern::intern;
+use string_cache::DefaultAtom as Atom;
 use grammar::repr::*;
 use lr1::tls::Lr1Tls;
 use test_util::normalized_grammar;
@@ -7,12 +7,12 @@ use super::build_lalr_states;
 use super::super::interpret::interpret;
 
 fn nt(t: &str) -> NonterminalString {
-    NonterminalString(intern(t))
+    NonterminalString(Atom::from(t))
 }
 
 macro_rules! tokens {
     ($($x:expr),*) => {
-        vec![$(TerminalString::quoted(intern($x))),*]
+        vec![$(TerminalString::quoted(Atom::from($x))),*]
     }
 }
 

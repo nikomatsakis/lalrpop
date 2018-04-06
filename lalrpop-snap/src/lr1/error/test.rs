@@ -1,4 +1,4 @@
-use intern::intern;
+use string_cache::DefaultAtom as Atom;
 use grammar::repr::*;
 use lr1::build_states;
 use lr1::tls::Lr1Tls;
@@ -8,7 +8,7 @@ use tls::Tls;
 use super::{ConflictClassification, ErrorReportingCx};
 
 fn nt(t: &str) -> NonterminalString {
-    NonterminalString(intern(t))
+    NonterminalString(Atom::from(t))
 }
 
 #[test]
@@ -116,7 +116,7 @@ fn suggest_question_conflict() {
             assert_eq!(nonterminal, nt("OPT_L"));
             assert_eq!(
                 symbol,
-                Symbol::Terminal(TerminalString::quoted(intern("L")))
+                Symbol::Terminal(TerminalString::quoted(Atom::from("L")))
             );
         }
         r => panic!("wrong classification {:#?}", r),
@@ -159,5 +159,29 @@ Ident = r#"[a-zA-Z][a-zA-Z0-9]*"#;
             assert_eq!(nonterminal, nt("Path"));
         }
         r => panic!("wrong classification {:#?}", r),
+    }
+}
+
+/// This example used to cause an out-of-bounds error.
+#[test]
+fn issue_249() {
+    let _tls = Tls::test();
+    let grammar = normalized_grammar(
+        r##"
+grammar;
+
+pub Func = StructDecl* VarDecl*;
+StructDecl = "<" StructParameter* ">";
+StructParameter = "may_dangle"?;
+VarDecl = "let";
+"##,
+    );
+    let _lr1_tls = Lr1Tls::install(grammar.terminals.clone());
+    let err = build_states(&grammar, nt("Func")).unwrap_err();
+    let mut cx = ErrorReportingCx::new(&grammar, &err.states, &err.conflicts);
+    let conflicts = super::token_conflicts(&err.conflicts);
+    for conflict in &conflicts {
+        println!("conflict={:?}", conflict);
+        cx.classify(conflict);
     }
 }

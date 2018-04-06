@@ -33,12 +33,12 @@ impl StateGraph {
                 state
                     .shifts
                     .iter()
-                    .map(|(&terminal, &state)| (Symbol::Terminal(terminal), state))
+                    .map(|(terminal, &state)| (Symbol::Terminal(terminal.clone()), state))
                     .chain(
                         state
                             .gotos
                             .iter()
-                            .map(|(&nt, &state)| (Symbol::Nonterminal(nt), state)),
+                            .map(|(nt, &state)| (Symbol::Nonterminal(nt.clone()), state)),
                     )
                     .map(|(symbol, successor)| {
                         (NodeIndex::new(i), NodeIndex::new(successor.0), symbol)

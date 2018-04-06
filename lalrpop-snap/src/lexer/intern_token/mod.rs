@@ -1,34 +1,51 @@
 /*!
 
-Generates an iterator type `__Matcher` that looks roughly like
+Generates an iterator type `Matcher` that looks roughly like
 
 ```ignore
-mod __intern_token {
-    extern crate regex as __regex;
+mod intern_token {
+    extern crate regex as regex;
 
-    pub struct __Matcher<'input> {
+    #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    pub struct Token<'input>(pub usize, pub &'input str);
+    //                           ~~~~~~     ~~~~~~~~~~~
+    //                           token      token
+    //                           index      text
+    //                           (type)
+
+    impl<'a> fmt::Display for Token<'a> { ... }
+
+    pub struct MatcherBuilder {
+        regex_set: regex::RegexSet,
+        regex_vec: Vec<regex::Regex>,
+    }
+
+    impl MatcherBuilder {
+        fn new() -> MatchBuilder { ... }
+        fn matcher<'input, 'builder>(&'builder self, s: &'input str) -> Matcher<'input, 'builder> { ... }
+    }
+
+    pub struct Matcher<'input, 'builder> {
         text: &'input str,
         consumed: usize,
-        regex_set: __regex::RegexSet,
-        regex_vec: Vec<__regex::Regex>,
+        regex_set: &'builder regex::RegexSet,
+        regex_vec: &'builder Vec<regex::Regex>,
     }
 
-    impl __Matcher<'input> {
-        fn __tokenize(&self, text: &str) -> Option<(usize, usize)> { ... }
+    impl Matcher<'input> {
+        fn tokenize(&self, text: &str) -> Option<(usize, usize)> { ... }
     }
 
-    impl<'input> Iterator for __Matcher<'input> {
-        type Item = Result<(usize, (usize, &'input str), usize), ParseError>;
-        //                  ~~~~~   ~~~~~  ~~~~~~~~~~~   ~~~~~
-        //                  start   token  token         end
-        //                          index  text
+    impl<'input> Iterator for Matcher<'input> {
+        type Item = Result<(usize, Token<'input>, usize), ParseError>;
+        //                  ~~~~~  ~~~~~~~~~~~~~  ~~~~~
+        //                  start  token          end
     }
 }
 ```
 
  */
 
-use intern;
 use lexer::re;
 use grammar::parse_tree::InternToken;
 use grammar::repr::{Grammar, TerminalLiteral};
@@ -46,29 +63,41 @@ pub fn compile<W: Write>(
     rust!(out, "#![allow(unused_imports)]");
     try!(out.write_uses("", &grammar));
     rust!(out, "extern crate regex as {}regex;", prefix);
-    rust!(out, "pub struct {}Matcher<'input> {{", prefix);
-    rust!(out, "text: &'input str,"); // remaining input
-    rust!(out, "consumed: usize,"); // number of chars consumed thus far
+    rust!(out, "use std::fmt as {}fmt;", prefix);
+    rust!(out, "");
+    rust!(
+        out,
+        "#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]"
+    );
+    rust!(out, "pub struct Token<'input>(pub usize, pub &'input str);");
+    rust!(out, "impl<'a> {}fmt::Display for Token<'a> {{", prefix);
+    rust!(
+        out,
+        "fn fmt(&self, formatter: &mut {}fmt::Formatter) -> Result<(), {}fmt::Error> {{",
+        prefix,
+        prefix
+    );
+    rust!(out, "{}fmt::Display::fmt(self.1, formatter)", prefix);
+    rust!(out, "}}");
+    rust!(out, "}}");
+    rust!(out, "");
+    rust!(out, "pub struct {}MatcherBuilder {{", prefix);
     rust!(out, "regex_set: {}regex::RegexSet,", prefix);
     rust!(out, "regex_vec: Vec<{}regex::Regex>,", prefix);
     rust!(out, "}}");
     rust!(out, "");
-    rust!(out, "impl<'input> {}Matcher<'input> {{", prefix);
-    rust!(
-        out,
-        "pub fn new(s: &'input str) -> {}Matcher<'input> {{",
-        prefix
-    );
+    rust!(out, "impl {}MatcherBuilder {{", prefix);
+    rust!(out, "pub fn new() -> {}MatcherBuilder {{", prefix);
 
     // create a vector of rust string literals with the text of each
     // regular expression
-    let regex_strings: Vec<String> = intern::read(|interner| {
+    let regex_strings: Vec<String> = {
         intern_token
             .match_entries
             .iter()
             .map(|match_entry| match match_entry.match_literal {
-                TerminalLiteral::Quoted(s) => re::parse_literal(interner.data(s)),
-                TerminalLiteral::Regex(s) => re::parse_regex(interner.data(s)).unwrap(),
+                TerminalLiteral::Quoted(ref s) => re::parse_literal(&s),
+                TerminalLiteral::Regex(ref s) => re::parse_regex(&s).unwrap(),
             })
             .map(|regex| {
                 // make sure all regex are anchored at the beginning of the input
@@ -80,7 +109,7 @@ pub fn compile<W: Write>(
                 format!("{:?}", regex_str)
             })
             .collect()
-    });
+    };
 
     rust!(out, "let {}strs: &[&str] = &[", prefix);
     for literal in &regex_strings {
@@ -101,24 +130,43 @@ pub fn compile<W: Write>(
     }
     rust!(out, "];");
 
+    rust!(
+        out,
+        "{0}MatcherBuilder {{ regex_set: {0}regex_set, regex_vec: {0}regex_vec }}",
+        prefix
+    );
+    rust!(out, "}}"); // fn new()
+    rust!(
+        out,
+        "pub fn matcher<'input, 'builder>(&'builder self, s: &'input str) \
+         -> {}Matcher<'input, 'builder> {{",
+        prefix
+    );
     rust!(out, "{}Matcher {{", prefix);
     rust!(out, "text: s,");
     rust!(out, "consumed: 0,");
-    rust!(out, "regex_set: {}regex_set,", prefix);
-    rust!(out, "regex_vec: {}regex_vec,", prefix);
+    rust!(out, "regex_set: &self.regex_set,");
+    rust!(out, "regex_vec: &self.regex_vec,");
     rust!(out, "}}"); // struct literal
-    rust!(out, "}}"); // fn new()
-    rust!(out, "}}"); // impl Matcher<'input>
+    rust!(out, "}}"); // fn matcher()
+    rust!(out, "}}"); // impl MatcherBuilder
+    rust!(out, "");
+    rust!(out, "pub struct {}Matcher<'input, 'builder> {{", prefix);
+    rust!(out, "text: &'input str,"); // remaining input
+    rust!(out, "consumed: usize,"); // number of chars consumed thus far
+    rust!(out, "regex_set: &'builder {}regex::RegexSet,", prefix);
+    rust!(out, "regex_vec: &'builder Vec<{}regex::Regex>,", prefix);
+    rust!(out, "}}");
     rust!(out, "");
     rust!(
         out,
-        "impl<'input> Iterator for {}Matcher<'input> {{",
+        "impl<'input, 'builder> Iterator for {}Matcher<'input, 'builder> {{",
         prefix
     );
     rust!(
         out,
-        "type Item = Result<(usize, (usize, &'input str), usize), \
-         {}lalrpop_util::ParseError<usize,(usize, &'input str),{}>>;",
+        "type Item = Result<(usize, Token<'input>, usize), \
+         {}lalrpop_util::ParseError<usize,Token<'input>,{}>>;",
         prefix,
         grammar.types.error_type()
     );
@@ -228,7 +276,7 @@ pub fn compile<W: Write>(
     rust!(out, "self.consumed = {}end_offset;", prefix);
     rust!(
         out,
-        "Some(Ok(({}start_offset, ({}index, {}result), {}end_offset)))",
+        "Some(Ok(({}start_offset, Token({}index, {}result), {}end_offset)))",
         prefix,
         prefix,
         prefix,

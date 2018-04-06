@@ -121,8 +121,10 @@ fn emit_user_action_code<W: Write>(
 
     try!(rust.write_fn_header(
         grammar,
+        &r::Visibility::Priv,
         format!("{}action{}", grammar.prefix, index),
         vec![],
+        None,
         arguments,
         ret_type,
         vec![]
@@ -142,8 +144,10 @@ fn emit_lookaround_action_code<W: Write>(
 ) -> io::Result<()> {
     try!(rust.write_fn_header(
         grammar,
+        &r::Visibility::Priv,
         format!("{}action{}", grammar.prefix, index),
         vec![],
+        None,
         vec![
             format!(
                 "{}lookbehind: &{}",
@@ -190,7 +194,7 @@ fn emit_inline_action_code<W: Write>(
     let arg_types: Vec<_> = data.symbols
         .iter()
         .flat_map(|sym| match *sym {
-            r::InlinedSymbol::Original(s) => vec![s],
+            r::InlinedSymbol::Original(ref s) => vec![s.clone()],
             r::InlinedSymbol::Inlined(_, ref syms) => syms.clone(),
         })
         .map(|s| s.ty(&grammar.types))
@@ -227,8 +231,10 @@ fn emit_inline_action_code<W: Write>(
 
     try!(rust.write_fn_header(
         grammar,
+        &r::Visibility::Priv,
         format!("{}action{}", grammar.prefix, index),
         vec![],
+        None,
         arguments,
         ret_type,
         vec![]

@@ -6,7 +6,7 @@ representations.
 
 */
 
-use intern::InternedString;
+use string_cache::DefaultAtom as Atom;
 use grammar::parse_tree::{Path, Span};
 use std::fmt::{Display, Error, Formatter};
 use util::Sep;
@@ -20,7 +20,7 @@ pub struct Pattern<T> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FieldPattern<T> {
     pub field_span: Span,
-    pub field_name: InternedString,
+    pub field_name: Atom,
     pub pattern: Pattern<T>,
 }
 
@@ -30,11 +30,12 @@ pub enum PatternKind<T> {
     Struct(Path, Vec<FieldPattern<T>>, /* trailing ..? */ bool),
     Path(Path),
     Tuple(Vec<Pattern<T>>),
+    TupleStruct(Path, Vec<Pattern<T>>),
     Usize(usize),
     Underscore,
     DotDot,
     Choose(T),
-    CharLiteral(InternedString),
+    CharLiteral(Atom),
 }
 
 impl<T> Pattern<T> {
@@ -66,11 +67,14 @@ impl<T> PatternKind<T> {
             PatternKind::Tuple(ref pats) => {
                 PatternKind::Tuple(pats.iter().map(|p| p.map(map_fn)).collect())
             }
+            PatternKind::TupleStruct(ref path, ref pats) => {
+                PatternKind::TupleStruct(path.clone(), pats.iter().map(|p| p.map(map_fn)).collect())
+            }
             PatternKind::Underscore => PatternKind::Underscore,
             PatternKind::DotDot => PatternKind::DotDot,
             PatternKind::Usize(n) => PatternKind::Usize(n),
             PatternKind::Choose(ref ty) => PatternKind::Choose(map_fn(ty)),
-            PatternKind::CharLiteral(c) => PatternKind::CharLiteral(c),
+            PatternKind::CharLiteral(ref c) => PatternKind::CharLiteral(c.clone()),
         }
     }
 }
@@ -78,7 +82,7 @@ impl<T> PatternKind<T> {
 impl<T> FieldPattern<T> {
     pub fn map<U>(&self, map_fn: &mut FnMut(&T) -> U) -> FieldPattern<U> {
         FieldPattern {
-            field_name: self.field_name,
+            field_name: self.field_name.clone(),
             field_span: self.field_span,
             pattern: self.pattern.map(map_fn),
         }
@@ -106,11 +110,14 @@ impl<T: Display> Display for PatternKind<T> {
                 write!(fmt, "{} {{ {}, .. }}", path, Sep(", ", fields))
             }
             PatternKind::Tuple(ref paths) => write!(fmt, "({})", Sep(", ", paths)),
+            PatternKind::TupleStruct(ref path, ref paths) => {
+                write!(fmt, "{}({})", path, Sep(", ", paths))
+            }
             PatternKind::Underscore => write!(fmt, "_"),
             PatternKind::DotDot => write!(fmt, ".."),
             PatternKind::Usize(n) => write!(fmt, "{}", n),
             PatternKind::Choose(ref ty) => write!(fmt, "{}", ty),
-            PatternKind::CharLiteral(c) => write!(fmt, "'{}'", c),
+            PatternKind::CharLiteral(ref c) => write!(fmt, "'{}'", c),
         }
     }
 }

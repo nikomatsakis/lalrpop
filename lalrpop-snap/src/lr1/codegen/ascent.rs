@@ -3,8 +3,9 @@
 //! [recursive ascent]: https://en.wikipedia.org/wiki/Recursive_ascent_parser
 
 use collections::{Multimap, Set};
+use grammar::parse_tree::WhereClause;
 use grammar::repr::{Grammar, NonterminalString, Production, Symbol, TerminalString, TypeParameter,
-                    TypeRepr};
+                    TypeRepr, Visibility};
 use lr1::core::*;
 use lr1::lookahead::Token;
 use lr1::state_graph::StateGraph;
@@ -45,6 +46,8 @@ struct RecursiveAscent<'ascent, 'grammar> {
 
     /// type parameters for the `Nonterminal` type
     nonterminal_type_params: Vec<TypeParameter>,
+
+    nonterminal_where_clauses: Vec<WhereClause<TypeRepr>>,
 }
 
 /// Tracks the suffix of the stack (that is, top-most elements) that any
@@ -139,6 +142,25 @@ impl<'ascent, 'grammar, W: Write>
             .cloned()
             .collect();
 
+        let mut referenced_where_clauses = Set::new();
+        for wc in &grammar.where_clauses {
+            wc.map(|ty| {
+                if ty.referenced()
+                    .iter()
+                    .any(|p| nonterminal_type_params.contains(p))
+                {
+                    referenced_where_clauses.insert(wc.clone());
+                }
+            });
+        }
+
+        let nonterminal_where_clauses: Vec<_> = grammar
+            .where_clauses
+            .iter()
+            .filter(|wc| referenced_where_clauses.contains(wc))
+            .cloned()
+            .collect();
+
         let state_inputs = states
             .iter()
             .map(|state| Self::state_input_for(state))
@@ -156,6 +178,7 @@ impl<'ascent, 'grammar, W: Write>
                 graph: graph,
                 state_inputs: state_inputs,
                 nonterminal_type_params: nonterminal_type_params,
+                nonterminal_where_clauses: nonterminal_where_clauses,
             },
         )
     }
@@ -188,16 +211,26 @@ impl<'ascent, 'grammar, W: Write>
         rust!(self.out, "#[allow(dead_code)]");
         rust!(
             self.out,
-            "pub enum {}Nonterminal<{}> {{",
+            "pub enum {}Nonterminal<{}>",
             self.prefix,
             Sep(", ", &self.custom.nonterminal_type_params)
         );
+
+        if !self.custom.nonterminal_where_clauses.is_empty() {
+            rust!(
+                self.out,
+                " where {}",
+                Sep(", ", &self.custom.nonterminal_where_clauses)
+            );
+        }
+
+        rust!(self.out, " {{");
 
         // make an enum with one variant per nonterminal; I considered
         // making different enums per state, but this would mean we
         // have to unwrap and rewrap as we pass up the stack, which
         // seems silly
-        for &nt in self.grammar.nonterminals.keys() {
+        for ref nt in self.grammar.nonterminals.keys() {
             let ty = self.types
                 .spanned_type(self.types.nonterminal_type(nt).clone());
             rust!(self.out, "{}({}),", Escape(nt), ty);
@@ -241,7 +274,7 @@ impl<'ascent, 'grammar, W: Write>
             self.out,
             "(None, {}Nonterminal::{}((_, {}nt, _))) => {{",
             self.prefix,
-            Escape(self.start_symbol),
+            Escape(&self.start_symbol),
             self.prefix
         );
         rust!(self.out, "Ok({}nt)", self.prefix);
@@ -314,7 +347,7 @@ impl<'ascent, 'grammar, W: Write>
         rust!(self.out, "match {}lookahead {{", self.prefix);
 
         // first emit shifts:
-        for (&terminal, &next_index) in &this_state.shifts {
+        for (terminal, &next_index) in &this_state.shifts {
             let sym_name = format!("{}sym{}", self.prefix, inputs.len());
             try!(self.consume_terminal(terminal, sym_name));
 
@@ -335,9 +368,9 @@ impl<'ascent, 'grammar, W: Write>
             .flat_map(|&(ref tokens, production)| tokens.iter().map(move |t| (production, t)))
             .collect();
         for (production, tokens) in reductions {
-            for (index, &token) in tokens.iter().enumerate() {
-                let pattern = match token {
-                    Token::Terminal(s) => format!("Some({})", self.match_terminal_pattern(s)),
+            for (index, token) in tokens.iter().enumerate() {
+                let pattern = match *token {
+                    Token::Terminal(ref s) => format!("Some({})", self.match_terminal_pattern(s)),
                     Token::Error => {
                         panic!("Error recovery is not implemented for recursive ascent parsers")
                     }
@@ -370,7 +403,7 @@ impl<'ascent, 'grammar, W: Write>
                 || this_state
                     .reductions
                     .iter()
-                    .any(|&(ref t, _)| t.contains(Token::Terminal(*terminal)))
+                    .any(|&(ref t, _)| t.contains(&Token::Terminal(terminal.clone())))
         });
         rust!(
             self.out,
@@ -438,7 +471,7 @@ impl<'ascent, 'grammar, W: Write>
             );
 
             rust!(self.out, "match {}nt {{", self.prefix);
-            for (&nt, &next_index) in &this_state.gotos {
+            for (ref nt, &next_index) in &this_state.gotos {
                 // The nonterminal we are shifting becomes symN, where
                 // N is the number of inputs to this state (which are
                 // numbered sym0..sym(N-1)). It is never optional
@@ -506,6 +539,7 @@ impl<'ascent, 'grammar, W: Write>
 
         try!(self.out.write_fn_header(
             self.grammar,
+            &Visibility::Priv,
             format!("{}{}{}", self.prefix, fn_kind, fn_index),
             vec![
                 format!(
@@ -513,6 +547,7 @@ impl<'ascent, 'grammar, W: Write>
                     self.prefix, triple_type, iter_error_type
                 ),
             ],
+            None,
             fn_args,
             format!(
                 "Result<(Option<{}>, {}Nonterminal<{}>), {}>",
@@ -893,7 +928,7 @@ impl<'ascent, 'grammar, W: Write>
             "let {}nt = {}Nonterminal::{}((",
             self.prefix,
             self.prefix,
-            Escape(production.nonterminal)
+            Escape(&production.nonterminal)
         );
         rust!(self.out, "{}start,", self.prefix);
         rust!(self.out, "{}nt,", self.prefix);
@@ -914,7 +949,7 @@ impl<'ascent, 'grammar, W: Write>
     }
 
     /// Emit a pattern that matches `id` but doesn't extract any data.
-    fn match_terminal_pattern(&mut self, id: TerminalString) -> String {
+    fn match_terminal_pattern(&mut self, id: &TerminalString) -> String {
         let pattern = self.grammar.pattern(id).map(&mut |_| "_");
         let pattern = format!("{}", pattern);
         format!("(_, {}, _)", pattern)
@@ -922,7 +957,7 @@ impl<'ascent, 'grammar, W: Write>
 
     /// Emit a pattern that matches `id` and extracts its value, storing
     /// that value as `let_name`.
-    fn consume_terminal(&mut self, id: TerminalString, let_name: String) -> io::Result<()> {
+    fn consume_terminal(&mut self, id: &TerminalString, let_name: String) -> io::Result<()> {
         let mut pattern_names = vec![];
         let pattern = self.grammar.pattern(id).map(&mut |_| {
             let index = pattern_names.len();

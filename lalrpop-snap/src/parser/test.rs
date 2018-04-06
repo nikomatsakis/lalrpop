@@ -97,3 +97,55 @@ fn match_complex() {
         _ => panic!("expected MatchToken, but was: {:?}", first_item),
     }
 }
+
+#[test]
+fn where_clauses() {
+    let clauses = vec![
+        "where T: Debug",
+        "where T: Debug + Display",
+        "where T: std::ops::Add<usize>",
+        "where T: IntoIterator<Item = usize>",
+        "where T: 'a",
+        "where 'a: 'b",
+        "where for<'a> &'a T: Debug",
+        "where T: for<'a> Flobbles<'a>",
+        "where T: FnMut(usize)",
+        "where T: FnMut(usize, bool)",
+        "where T: FnMut() -> bool",
+        "where T: for<'a> FnMut(&'a usize)",
+        "where T: Debug, U: Display",
+    ];
+
+    for santa in clauses {
+        assert!(
+            parser::parse_where_clauses(santa).is_ok(),
+            "should parse where clauses: {}",
+            santa
+        );
+    }
+}
+
+#[test]
+fn grammars_with_where_clauses() {
+    let grammars = vec![
+        r###"
+grammar<T> where T: StaticMethods;
+"###,
+        r###"
+grammar<T>(methods: &mut T) where T: MutMethods;
+"###,
+        r###"
+grammar<'input, T>(methods: &mut T) where T: 'input + Debug + MutMethods;
+"###,
+        r###"
+grammar<F>(methods: &mut F) where F: for<'a> FnMut(&'a usize) -> bool;
+"###,
+        r###"
+grammar<F>(logger: &mut F) where F: for<'a> FnMut(&'a str);
+"###,
+    ];
+
+    for g in grammars {
+        assert!(parser::parse_grammar(g).is_ok());
+    }
+}

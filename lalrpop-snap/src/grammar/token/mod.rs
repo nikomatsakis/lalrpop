@@ -1,7 +1,7 @@
-use std::collections::{HashMap};
+use std::collections::HashMap;
 
 use grammar::parse_tree::TypeRef;
-use intern::InternedString;
+use string_cache::DefaultAtom as Atom;
 
 #[cfg(test)]
 mod test;
@@ -11,14 +11,11 @@ pub struct TokenDefinition {
     enum_type: TypeRef,
 
     // map from a custom string, like `"("` to a variant name like LPAREN
-    token_map: HashMap<InternedString, InternedString>,
+    token_map: HashMap<Atom, Atom>,
 }
 
 impl TokenDefinition {
-    pub fn new(enum_type: TypeRef,
-               token_map: Vec<(InternedString, InternedString)>)
-               -> TokenDefinition
-    {
+    pub fn new(enum_type: TypeRef, token_map: Vec<(Atom, Atom)>) -> TokenDefinition {
         TokenDefinition {
             enum_type: enum_type,
             token_map: token_map.into_iter().collect(),

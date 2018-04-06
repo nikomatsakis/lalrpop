@@ -51,37 +51,32 @@ impl<'ascent, 'grammar, W: Write> CodeGenerator<'ascent, 'grammar, W, TestAll> {
             rust!(this.out, "mod {}ascent {{", this.prefix);
             try!(super::ascent::compile(
                 this.grammar,
-                this.user_start_symbol,
-                this.start_symbol,
+                this.user_start_symbol.clone(),
+                this.start_symbol.clone(),
                 this.states,
                 "super::super::super",
                 this.out
             ));
-            rust!(
-                this.out,
-                "pub use self::{}parse{}::parse_{};",
+            let pub_use = format!(
+                "{}use self::{}parse{}::{}Parser;",
+                this.grammar.nonterminals[&this.user_start_symbol].visibility,
                 this.prefix,
                 this.start_symbol,
                 this.user_start_symbol
             );
+            rust!(this.out, "{}", pub_use);
             rust!(this.out, "}}");
 
             rust!(this.out, "mod {}parse_table {{", this.prefix);
             try!(super::parse_table::compile(
                 this.grammar,
-                this.user_start_symbol,
-                this.start_symbol,
+                this.user_start_symbol.clone(),
+                this.start_symbol.clone(),
                 this.states,
                 "super::super::super",
                 this.out
             ));
-            rust!(
-                this.out,
-                "pub use self::{}parse{}::parse_{};",
-                this.prefix,
-                this.start_symbol,
-                this.user_start_symbol
-            );
+            rust!(this.out, "{}", pub_use);
             rust!(this.out, "}}");
 
             Ok(())
@@ -91,6 +86,9 @@ impl<'ascent, 'grammar, W: Write> CodeGenerator<'ascent, 'grammar, W, TestAll> {
     fn write_parser_fn(&mut self) -> io::Result<()> {
         try!(self.start_parser_fn());
 
+        if self.grammar.intern_token.is_some() {
+            rust!(self.out, "let _ = self.builder;");
+        }
         // parse input using both methods:
         try!(self.call_delegate("ascent"));
         try!(self.call_delegate("parse_table"));
@@ -127,7 +125,7 @@ impl<'ascent, 'grammar, W: Write> CodeGenerator<'ascent, 'grammar, W, TestAll> {
         };
         rust!(
             self.out,
-            "let {}{} = {}{}::parse_{}{}(",
+            "let {}{} = {}{}::{}Parser::new().parse{}(",
             self.prefix,
             delegate,
             self.prefix,

@@ -1,4 +1,4 @@
-use intern::intern;
+use string_cache::DefaultAtom as Atom;
 use parser;
 use normalize::macro_expand::expand_macros;
 use normalize::token_check;
@@ -20,10 +20,10 @@ fn compare(g1: &str, expected: Vec<(&'static str, &'static str)>) {
     println!("types table: {:?}", types);
 
     for (nt_id, nt_type) in expected {
-        let id = NonterminalString(intern(nt_id));
+        let id = NonterminalString(Atom::from(nt_id));
         let ty = type_repr(nt_type);
         println!("expected type of {:?} is {:?}", id, ty);
-        assert_eq!(types.nonterminal_type(id), &ty);
+        assert_eq!(types.nonterminal_type(&id), &ty);
     }
 }
 
@@ -236,7 +236,7 @@ grammar;
         vec![
             (
                 "Z",
-                "__lalrpop_util::ParseError<usize, (usize, &'input str), ()>",
+                "__lalrpop_util::ParseError<usize, Token<'input>, &'static str>",
             ),
         ],
     )

@@ -1,6 +1,8 @@
 extern crate docopt;
 extern crate lalrpop;
-extern crate rustc_serialize;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde;
 
 use docopt::Docopt;
 use lalrpop::Configuration;
@@ -19,7 +21,7 @@ fn main1() -> io::Result<()> {
     let mut stdout = std::io::stdout();
 
     let args: Args = Docopt::new(USAGE)
-        .and_then(|d| d.argv(env::args()).decode())
+        .and_then(|d| d.argv(env::args()).deserialize())
         .unwrap_or_else(|e| e.exit());
 
     if args.flag_version {
@@ -92,7 +94,7 @@ Options:
     --report             Generate report files.
 ";
 
-#[derive(Debug, RustcDecodable)]
+#[derive(Debug, Deserialize)]
 struct Args {
     arg_inputs: Vec<String>,
     flag_level: Option<LevelFlag>,
@@ -103,7 +105,7 @@ struct Args {
     flag_version: bool,
 }
 
-#[derive(Debug, RustcDecodable)]
+#[derive(Debug, Deserialize)]
 enum LevelFlag {
     Quiet,
     Info,
@@ -121,7 +123,7 @@ mod test {
     fn test_usage_help() {
         let argv = || vec!["lalrpop", "--help"];
         let _: Args = Docopt::new(USAGE)
-            .and_then(|d| d.help(false).argv(argv().into_iter()).decode())
+            .and_then(|d| d.help(false).argv(argv().into_iter()).deserialize())
             .unwrap();
     }
 
@@ -129,7 +131,7 @@ mod test {
     fn test_usage_version() {
         let argv = || vec!["lalrpop", "--version"];
         let _: Args = Docopt::new(USAGE)
-            .and_then(|d| d.argv(argv().into_iter()).decode())
+            .and_then(|d| d.argv(argv().into_iter()).deserialize())
             .unwrap();
     }
 
@@ -137,7 +139,7 @@ mod test {
     fn test_usage_single_input() {
         let argv = || vec!["lalrpop", "file.lalrpop"];
         let _: Args = Docopt::new(USAGE)
-            .and_then(|d| d.argv(argv().into_iter()).decode())
+            .and_then(|d| d.argv(argv().into_iter()).deserialize())
             .unwrap();
     }
 
@@ -145,7 +147,7 @@ mod test {
     fn test_usage_multiple_inputs() {
         let argv = || vec!["lalrpop", "file.lalrpop", "../file2.lalrpop"];
         let _: Args = Docopt::new(USAGE)
-            .and_then(|d| d.argv(argv().into_iter()).decode())
+            .and_then(|d| d.argv(argv().into_iter()).deserialize())
             .unwrap();
     }
 }

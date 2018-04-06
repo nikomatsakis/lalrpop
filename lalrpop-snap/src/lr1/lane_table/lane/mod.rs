@@ -90,7 +90,7 @@ impl<'trace, 'grammar, L: Lookahead> LaneTracer<'trace, 'grammar, L> {
             // reached by shifting T. Those predecessors will contain
             // an item like `X = ...p (*) T ...s`, which we will then
             // process in turn.
-            let shifted_symbol = item.production.symbols[item.index - 1];
+            let shifted_symbol = item.production.symbols[item.index - 1].clone();
             let unshifted_item = Item {
                 index: item.index - 1,
                 ..item
@@ -122,8 +122,8 @@ impl<'trace, 'grammar, L: Lookahead> LaneTracer<'trace, 'grammar, L> {
         // have to recurse and search with the previous item.
 
         let state_items = &self.states[state.0].items.vec;
-        let nonterminal = item.production.nonterminal;
-        if nonterminal == self.start_nt {
+        let nonterminal = &item.production.nonterminal;
+        if *nonterminal == self.start_nt {
             // as a special case, if the `X` above is the special, synthetic
             // start-terminal, then the only thing that comes afterwards is EOF.
             self.table.add_lookahead(state, conflict, &TokenSet::eof());

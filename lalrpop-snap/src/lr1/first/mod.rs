@@ -19,9 +19,11 @@ impl FirstSets {
         while changed {
             changed = false;
             for production in grammar.nonterminals.values().flat_map(|p| &p.productions) {
-                let nt = production.nonterminal;
+                let nt = &production.nonterminal;
                 let lookahead = this.first0(&production.symbols);
-                let first_set = this.map.entry(nt).or_insert_with(|| TokenSet::new());
+                let first_set = this.map
+                    .entry(nt.clone())
+                    .or_insert_with(|| TokenSet::new());
                 changed |= first_set.union_with(&lookahead);
             }
         }
@@ -39,14 +41,14 @@ impl FirstSets {
 
         for symbol in symbols {
             match *symbol {
-                Symbol::Terminal(t) => {
-                    result.insert(Token::Terminal(t));
+                Symbol::Terminal(ref t) => {
+                    result.insert(Token::Terminal(t.clone()));
                     return result;
                 }
 
-                Symbol::Nonterminal(nt) => {
+                Symbol::Nonterminal(ref nt) => {
                     let mut empty_prod = false;
-                    match self.map.get(&nt) {
+                    match self.map.get(nt) {
                         None => {
                             // This should only happen during set
                             // construction; it corresponds to an

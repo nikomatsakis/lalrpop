@@ -1,6 +1,6 @@
 extern crate lalrpop_util;
 
-pub mod calculator1; // syntesized by LALRPOP
+pub mod calculator1; // synthesized by LALRPOP
 
 #[test]
 fn calculator1() {

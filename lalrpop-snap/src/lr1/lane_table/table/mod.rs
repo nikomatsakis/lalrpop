@@ -116,13 +116,21 @@ impl<'grammar> LaneTable<'grammar> {
     pub fn rows(&self) -> Result<Map<StateIndex, ContextSet>, StateIndex> {
         let mut map = Map::new();
         for (&(state_index, conflict_index), token_set) in &self.lookaheads {
+            debug!(
+                "rows: inserting state_index={:?} conflict_index={:?} token_set={:?}",
+                state_index, conflict_index, token_set
+            );
             match {
                 map.entry(state_index)
                     .or_insert_with(|| ContextSet::new(self.conflicts))
                     .insert(conflict_index, token_set)
             } {
                 Ok(_changed) => {}
-                Err(OverlappingLookahead) => return Err(state_index),
+                Err(OverlappingLookahead) => {
+                    debug!("rows: intra-row conflict inserting state_index={:?} conflict_index={:?} token_set={:?}",
+                           state_index, conflict_index, token_set);
+                    return Err(state_index);
+                }
             }
         }
 

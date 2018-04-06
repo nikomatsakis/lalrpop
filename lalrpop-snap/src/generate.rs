@@ -19,7 +19,7 @@ pub fn random_parse_tree(grammar: &Grammar, symbol: NonterminalString) -> ParseT
     loop {
         // sometimes, the random walk overflows the stack, so we have a max, and if
         // it is exceeded, we just try again
-        if let Some(result) = gen.nonterminal(symbol) {
+        if let Some(result) = gen.nonterminal(symbol.clone()) {
             return result;
         }
         gen.depth = 0;
@@ -41,13 +41,13 @@ impl<'grammar> Generator<'grammar> {
         }
 
         self.depth += 1;
-        let productions = self.grammar.productions_for(nt);
+        let productions = self.grammar.productions_for(&nt);
         let index: usize = self.rng.gen_range(0, productions.len());
         let production = &productions[index];
         let trees: Option<Vec<_>> = production
             .symbols
             .iter()
-            .map(|&sym| self.symbol(sym))
+            .map(|sym| self.symbol(sym.clone()))
             .collect();
         trees.map(|trees| ParseTree::Nonterminal(nt, trees))
     }
@@ -69,7 +69,7 @@ impl ParseTree {
 
     fn push_terminals(&self, vec: &mut Vec<TerminalString>) {
         match *self {
-            ParseTree::Terminal(s) => vec.push(s),
+            ParseTree::Terminal(ref s) => vec.push(s.clone()),
             ParseTree::Nonterminal(_, ref trees) => for tree in trees {
                 tree.push_terminals(vec);
             },

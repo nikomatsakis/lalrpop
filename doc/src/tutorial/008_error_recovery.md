@@ -54,12 +54,21 @@ by inserting this `!` token where necessary.
 #[test]
 fn calculator6() {
     let mut errors = Vec::new();
-    assert_eq!(&format!("{:?}", calculator6::parse_Exprs(&mut errors, "22 * + 3").unwrap()),
-               "[((22 * error) + 3)]");
-    assert_eq!(&format!("{:?}", calculator6::parse_Exprs(&mut errors, "22 * 44 + 66, *3").unwrap()),
-               "[((22 * 44) + 66), (error * 3)]");
-    assert_eq!(&format!("{:?}", calculator6::parse_Exprs(&mut errors, "*").unwrap()),
-               "[(error * error)]");
+
+    let expr = calculator6::ExprsParser::new()
+        .parse(&mut errors, "22 * + 3")
+        .unwrap();
+    assert_eq!(&format!("{:?}", expr), "[((22 * error) + 3)]");
+
+    let expr = calculator6::ExprsParser::new()
+        .parse(&mut errors, "22 * 44 + 66, *3")
+        .unwrap();
+    assert_eq!(&format!("{:?}", expr), "[((22 * 44) + 66), (error * 3)]");
+
+    let expr = calculator6::ExprsParser::new()
+        .parse(&mut errors, "*")
+        .unwrap();
+    assert_eq!(&format!("{:?}", expr), "[(error * error)]");
 
     assert_eq!(errors.len(), 4);
 }

@@ -93,8 +93,10 @@ pub mod ast;
 
 #[test]
 fn calculator4() {
-    assert_eq!(&format!("{:?}", calculator4::parse_Expr("22 * 44 + 66").unwrap()),
-               "((22 * 44) + 66)");
+    let expr = calculator4::ExprParser::new()
+        .parse("22 * 44 + 66")
+        .unwrap();
+    assert_eq!(&format!("{:?}", expr), "((22 * 44) + 66)");
 }
 ```
 

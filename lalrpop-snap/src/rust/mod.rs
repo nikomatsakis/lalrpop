@@ -2,6 +2,7 @@
 //! which then gets serialized.
 
 use grammar::repr::Grammar;
+use grammar::parse_tree::Visibility;
 use tls::Tls;
 use std::fmt;
 use std::io::{self, Write};
@@ -108,57 +109,18 @@ impl<W: Write> RustWrite<W> {
         Ok(())
     }
 
-    pub fn write_pub_fn_header(
-        &mut self,
-        grammar: &Grammar,
-        name: String,
-        type_parameters: Vec<String>,
-        parameters: Vec<String>,
-        return_type: String,
-        where_clauses: Vec<String>,
-    ) -> io::Result<()> {
-        self.write_fn_header_helper(
-            grammar,
-            "pub ",
-            name,
-            type_parameters,
-            parameters,
-            return_type,
-            where_clauses,
-        )
-    }
-
     pub fn write_fn_header(
         &mut self,
         grammar: &Grammar,
+        visibility: &Visibility,
         name: String,
         type_parameters: Vec<String>,
+        first_parameter: Option<String>,
         parameters: Vec<String>,
         return_type: String,
         where_clauses: Vec<String>,
     ) -> io::Result<()> {
-        self.write_fn_header_helper(
-            grammar,
-            "",
-            name,
-            type_parameters,
-            parameters,
-            return_type,
-            where_clauses,
-        )
-    }
-
-    fn write_fn_header_helper(
-        &mut self,
-        grammar: &Grammar,
-        qualifiers: &str,
-        name: String,
-        type_parameters: Vec<String>,
-        parameters: Vec<String>,
-        return_type: String,
-        where_clauses: Vec<String>,
-    ) -> io::Result<()> {
-        rust!(self, "{}fn {}<", qualifiers, name);
+        rust!(self, "{}fn {}<", visibility, name);
 
         for type_parameter in &grammar.type_parameters {
             rust!(self, "{0:1$}{2},", "", TAB, type_parameter);
@@ -170,6 +132,9 @@ impl<W: Write> RustWrite<W> {
 
         rust!(self, ">(");
 
+        if let Some(param) = first_parameter {
+            rust!(self, "{},", param);
+        }
         for parameter in &grammar.parameters {
             rust!(self, "{}: {},", parameter.name, parameter.ty);
         }
@@ -195,6 +160,14 @@ impl<W: Write> RustWrite<W> {
         Ok(())
     }
 
+    pub fn write_module_attributes(&mut self, grammar: &Grammar) -> io::Result<()> {
+        rust!(self, "#![cfg_attr(rustfmt, rustfmt_skip)]");
+        for attribute in grammar.module_attributes.iter() {
+            rust!(self, "{}", attribute);
+        }
+        Ok(())
+    }
+
     pub fn write_uses(&mut self, super_prefix: &str, grammar: &Grammar) -> io::Result<()> {
         // things the user wrote
         for u in &grammar.uses {
@@ -209,7 +182,9 @@ impl<W: Write> RustWrite<W> {
     }
 
     pub fn write_standard_uses(&mut self, prefix: &str) -> io::Result<()> {
-        // stuff that we plan to use
+        // Stuff that we plan to use.
+        // Occasionally we happen to not use it after all, hence the allow.
+        rust!(self, "#[allow(unused_extern_crates)]");
         rust!(self, "extern crate lalrpop_util as {}lalrpop_util;", prefix);
 
         Ok(())

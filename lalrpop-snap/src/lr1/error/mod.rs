@@ -211,9 +211,9 @@ impl<'cx, 'grammar> ErrorReportingCx<'cx, 'grammar> {
             .begin_wrap();
 
         let builder = match conflict.lookahead {
-            Token::Terminal(term) => builder
+            Token::Terminal(ref term) => builder
                 .text("At that point, if the next token is a")
-                .push(term)
+                .push(term.clone())
                 .verbatimed()
                 .styled(Tls::session().cursor_symbol)
                 .punctuated(","),
@@ -229,8 +229,8 @@ impl<'cx, 'grammar> ErrorReportingCx<'cx, 'grammar> {
         let builder = self.describe_reduce(builder, styles, conflict.production, reduce, "First");
 
         match conflict.action {
-            Action::Shift(lookahead, _) => {
-                self.describe_shift(builder, styles, lookahead, action, "Alternatively")
+            Action::Shift(ref lookahead, _) => {
+                self.describe_shift(builder, styles, lookahead.clone(), action, "Alternatively")
             }
             Action::Reduce(production) => {
                 self.describe_reduce(builder, styles, production, action, "Alternatively")
@@ -256,7 +256,7 @@ impl<'cx, 'grammar> ErrorReportingCx<'cx, 'grammar> {
         // |                           |
         // +-NT2-----------------------+
 
-        let nt1 = example.reductions[0].nonterminal;
+        let nt1 = example.reductions[0].nonterminal.clone();
 
         builder
             .begin_lines()
@@ -296,7 +296,7 @@ impl<'cx, 'grammar> ErrorReportingCx<'cx, 'grammar> {
             .text(production.symbols.len())
             .text("token(s) from the stack")
             .text("and produce a")
-            .push(production.nonterminal)
+            .push(production.nonterminal.clone())
             .verbatimed()
             .punctuated(".")
             .text("This might then yield a parse tree like")
@@ -346,7 +346,7 @@ impl<'cx, 'grammar> ErrorReportingCx<'cx, 'grammar> {
             .styled(Tls::session().hint_text)
             .text("It appears you could resolve this problem by replacing")
             .text("uses of")
-            .push(nonterminal)
+            .push(nonterminal.clone())
             .verbatimed()
             .text("with")
             .text(symbol) // intentionally disable coloring here, looks better
@@ -415,13 +415,13 @@ impl<'cx, 'grammar> ErrorReportingCx<'cx, 'grammar> {
             .begin_wrap()
             .text(format!("and looking at a token `{:?}`", conflict.lookahead))
             .text("we can reduce to a")
-            .push(conflict.production.nonterminal)
+            .push(conflict.production.nonterminal.clone())
             .verbatimed();
         builder = match conflict.action {
             Action::Shift(..) => builder.text("but we can also shift"),
             Action::Reduce(prod) => builder
                 .text("but we can also reduce to a")
-                .text(prod.nonterminal)
+                .text(prod.nonterminal.clone())
                 .verbatimed(),
         };
         builder.end().end().end()
@@ -433,17 +433,26 @@ impl<'cx, 'grammar> ErrorReportingCx<'cx, 'grammar> {
         let mut action_examples = match conflict.action {
             Action::Shift(..) => self.shift_examples(conflict),
             Action::Reduce(production) => {
-                self.reduce_examples(conflict.state, production, conflict.lookahead)
+                self.reduce_examples(conflict.state, production, conflict.lookahead.clone())
             }
         };
 
         // Find examples from the conflicting reduce.
-        let mut reduce_examples =
-            self.reduce_examples(conflict.state, conflict.production, conflict.lookahead);
+        let mut reduce_examples = self.reduce_examples(
+            conflict.state,
+            conflict.production,
+            conflict.lookahead.clone(),
+        );
 
         // Prefer shorter examples to longer ones.
         action_examples.sort_by(|e, f| e.symbols.len().cmp(&f.symbols.len()));
         reduce_examples.sort_by(|e, f| e.symbols.len().cmp(&f.symbols.len()));
+
+        // This really shouldn't happen, but if we've failed to come
+        // up with examples, then report a "naive" error.
+        if action_examples.is_empty() || reduce_examples.is_empty() {
+            return ConflictClassification::Naive;
+        }
 
         if let Some(classification) =
             self.try_classify_ambiguity(conflict, &action_examples, &reduce_examples)
@@ -494,17 +503,17 @@ impl<'cx, 'grammar> ErrorReportingCx<'cx, 'grammar> {
                 // Consider whether to call this a precedence
                 // error. We do this if we are stuck between reducing
                 // `T = T S T` and shifting `S`.
-                if let Action::Shift(term, _) = conflict.action {
-                    let nt = conflict.production.nonterminal;
+                if let Action::Shift(ref term, _) = conflict.action {
+                    let nt = &conflict.production.nonterminal;
                     if conflict.production.symbols.len() == 3
-                        && conflict.production.symbols[0] == Symbol::Nonterminal(nt)
-                        && conflict.production.symbols[1] == Symbol::Terminal(term)
-                        && conflict.production.symbols[2] == Symbol::Nonterminal(nt)
+                        && conflict.production.symbols[0] == Symbol::Nonterminal(nt.clone())
+                        && conflict.production.symbols[1] == Symbol::Terminal(term.clone())
+                        && conflict.production.symbols[2] == Symbol::Nonterminal(nt.clone())
                     {
                         return ConflictClassification::Precedence {
                             shift: action.clone(),
                             reduce: reduce.clone(),
-                            nonterminal: conflict.production.nonterminal,
+                            nonterminal: nt.clone(),
                         };
                     }
                 }
@@ -535,7 +544,16 @@ impl<'cx, 'grammar> ErrorReportingCx<'cx, 'grammar> {
             return None;
         }
 
-        let nt = conflict.production.nonterminal;
+        debug!(
+            "try_classify_question: action_examples={:?}",
+            action_examples
+        );
+        debug!(
+            "try_classify_question: reduce_examples={:?}",
+            reduce_examples
+        );
+
+        let nt = &conflict.production.nonterminal;
         let nt_productions = self.grammar.productions_for(nt);
         if nt_productions.len() == 2 {
             for &(i, j) in &[(0, 1), (1, 0)] {
@@ -543,8 +561,8 @@ impl<'cx, 'grammar> ErrorReportingCx<'cx, 'grammar> {
                     return Some(ConflictClassification::SuggestQuestion {
                         shift: action_examples[0].clone(),
                         reduce: reduce_examples[0].clone(),
-                        nonterminal: nt,
-                        symbol: nt_productions[j].symbols[0],
+                        nonterminal: nt.clone(),
+                        symbol: nt_productions[j].symbols[0].clone(),
                     });
                 }
             }
@@ -580,11 +598,11 @@ impl<'cx, 'grammar> ErrorReportingCx<'cx, 'grammar> {
             .cartesian_product(reduce_examples)
             .filter_map(|(shift, reduce)| {
                 if self.try_classify_inline_example(shift, reduce) {
-                    let nt = reduce.reductions[0].nonterminal;
+                    let nt = &reduce.reductions[0].nonterminal;
                     Some(ConflictClassification::SuggestInline {
                         shift: shift.clone(),
                         reduce: reduce.clone(),
-                        nonterminal: nt,
+                        nonterminal: nt.clone(),
                     })
                 } else {
                     None
@@ -656,7 +674,7 @@ impl<'cx, 'grammar> ErrorReportingCx<'cx, 'grammar> {
         let mut duplicates = set();
         if reduce.reductions[0..i + 1]
             .iter()
-            .any(|r| !duplicates.insert(r.nonterminal))
+            .any(|r| !duplicates.insert(r.nonterminal.clone()))
         {
             return false;
         }
@@ -667,7 +685,7 @@ impl<'cx, 'grammar> ErrorReportingCx<'cx, 'grammar> {
             .iter()
             .zip(reduce_upcoming)
             .filter_map(|(shift_sym, reduce_sym)| match (shift_sym, reduce_sym) {
-                (&ExampleSymbol::Symbol(shift_sym), &ExampleSymbol::Symbol(reduce_sym)) => {
+                (&ExampleSymbol::Symbol(ref shift_sym), &ExampleSymbol::Symbol(ref reduce_sym)) => {
                     if shift_sym == reduce_sym {
                         // same symbol on both; we'll be able to shift them
                         None
@@ -677,8 +695,8 @@ impl<'cx, 'grammar> ErrorReportingCx<'cx, 'grammar> {
                         // consider a suffix matching epsilon to be
                         // potentially overlapping, though we could
                         // supply the actual lookahead for more precision.
-                        let shift_first = self.first_sets.first0(&[shift_sym]);
-                        let reduce_first = self.first_sets.first0(&[reduce_sym]);
+                        let shift_first = self.first_sets.first0(&[shift_sym.clone()]);
+                        let reduce_first = self.first_sets.first0(&[reduce_sym.clone()]);
                         if shift_first.is_disjoint(&reduce_first) {
                             Some(true)
                         } else {
@@ -737,7 +755,7 @@ impl<'cx, 'grammar> ErrorReportingCx<'cx, 'grammar> {
     ) -> Set<LR0Item<'grammar>> {
         // Lookahead must be a terminal, not EOF.
         // Find an item J like `Bar = ... (*) L ...`.
-        let lookahead = Symbol::Terminal(conflict.lookahead.unwrap_terminal());
+        let lookahead = Symbol::Terminal(conflict.lookahead.unwrap_terminal().clone());
         state
             .items
             .vec
@@ -759,7 +777,7 @@ fn token_conflicts<'grammar>(
                 state: conflict.state,
                 lookahead: token,
                 production: conflict.production,
-                action: conflict.action,
+                action: conflict.action.clone(),
             })
         })
         .collect()

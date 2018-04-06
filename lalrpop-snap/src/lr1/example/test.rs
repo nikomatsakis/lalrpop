@@ -1,4 +1,4 @@
-use intern::intern;
+use string_cache::DefaultAtom as Atom;
 use grammar::repr::*;
 use test_util::expect_debug;
 use tls::Tls;
@@ -6,11 +6,11 @@ use tls::Tls;
 use super::{Example, ExampleSymbol, Reduction};
 
 fn nt(t: &str) -> NonterminalString {
-    NonterminalString(intern(t))
+    NonterminalString(Atom::from(t))
 }
 
 fn term(t: &str) -> TerminalString {
-    TerminalString::quoted(intern(t))
+    TerminalString::quoted(Atom::from(t))
 }
 
 macro_rules! sym {

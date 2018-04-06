@@ -89,6 +89,7 @@ mod error_recovery_issue_240;
 mod error_recovery_lalr_loop;
 mod error_recovery_lock_in;
 mod error_recovery_span;
+mod error_recovery_type_in_macro;
 
 /// test for inlining expansion issue #55
 mod issue_55;
@@ -98,6 +99,7 @@ mod unit;
 
 /// test for match section
 mod match_section;
+mod match_alternatives;
 
 /// regression test for issue #253.
 mod partial_parse;
@@ -841,6 +843,20 @@ fn test_match_section() {
         match_section::QueryParser::new()
             .parse("UPDATE update")
             .is_err()
+    );
+}
+
+#[test]
+fn test_match_alternatives() {
+    assert_eq!(
+        match_alternatives::FileParser::new()
+            .parse("foo true"),
+        Ok("foo true".to_string())
+    );
+    assert_eq!(
+        match_alternatives::FileParser::new()
+            .parse("bar false"),
+        Ok("bar false".to_string())
     );
 }
 

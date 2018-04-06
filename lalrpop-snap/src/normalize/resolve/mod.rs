@@ -4,7 +4,7 @@
 use super::{NormError, NormResult};
 
 use grammar::parse_tree::*;
-use intern::InternedString;
+use string_cache::DefaultAtom as Atom;
 use collections::{map, Map};
 
 #[cfg(test)]
@@ -21,7 +21,13 @@ fn resolve_in_place(grammar: &mut Grammar) -> NormResult<()> {
             .items
             .iter()
             .filter_map(|item| item.as_nonterminal())
-            .map(|nt| (nt.span, nt.name.0, Def::Nonterminal(nt.args.len())));
+            .map(|nt| {
+                (
+                    nt.span.clone(),
+                    nt.name.0.clone(),
+                    Def::Nonterminal(nt.args.len()),
+                )
+            });
 
         let terminal_identifiers = grammar
             .items
@@ -31,7 +37,7 @@ fn resolve_in_place(grammar: &mut Grammar) -> NormResult<()> {
             .flat_map(|enum_token| &enum_token.conversions)
             .filter_map(|conversion| match conversion.from {
                 TerminalString::Literal(..) | TerminalString::Error => None,
-                TerminalString::Bare(id) => Some((conversion.span, id, Def::Terminal)),
+                TerminalString::Bare(ref id) => Some((conversion.span, id.clone(), Def::Terminal)),
             });
 
         // Extract all the bare identifiers that appear in the RHS of a `match` declaration.
@@ -49,8 +55,8 @@ fn resolve_in_place(grammar: &mut Grammar) -> NormResult<()> {
             .flat_map(|match_token| &match_token.contents)
             .flat_map(|match_contents| &match_contents.items)
             .filter_map(|item| match *item {
-                MatchItem::Mapped(_, TerminalString::Bare(id), _) => {
-                    Some((item.span(), id, Def::Terminal))
+                MatchItem::Mapped(_, TerminalString::Bare(ref id), _) => {
+                    Some((item.span(), id.clone(), Def::Terminal))
                 }
                 _ => None,
             });
@@ -61,7 +67,7 @@ fn resolve_in_place(grammar: &mut Grammar) -> NormResult<()> {
 
         let mut identifiers = map();
         for (span, id, def) in all_identifiers {
-            if let Some(old_def) = identifiers.insert(id, def) {
+            if let Some(old_def) = identifiers.insert(id.clone(), def) {
                 let description = def.description();
                 let old_description = old_def.description();
                 if description == old_description {
@@ -103,7 +109,7 @@ enum Def {
 #[derive(Debug)]
 struct ScopeChain<'scope> {
     previous: Option<&'scope ScopeChain<'scope>>,
-    identifiers: Map<InternedString, Def>,
+    identifiers: Map<Atom, Def>,
 }
 
 impl Def {
@@ -144,7 +150,7 @@ impl Validator {
         &self,
         span: Span,
         args: &[NonterminalString],
-    ) -> NormResult<Map<InternedString, Def>> {
+    ) -> NormResult<Map<Atom, Def>> {
         for (index, arg) in args.iter().enumerate() {
             if args[..index].contains(&arg) {
                 return_err!(
@@ -154,7 +160,9 @@ impl Validator {
                 );
             }
         }
-        Ok(args.iter().map(|&nt| (nt.0, Def::MacroArg)).collect())
+        Ok(args.iter()
+            .map(|nt| (nt.0.clone(), Def::MacroArg))
+            .collect())
     }
 
     fn validate_alternative(
@@ -163,7 +171,7 @@ impl Validator {
         alternative: &mut Alternative,
     ) -> NormResult<()> {
         if let Some(ref condition) = alternative.condition {
-            let def = try!(self.validate_id(scope, condition.span, condition.lhs.0));
+            let def = try!(self.validate_id(scope, condition.span.clone(), &condition.lhs.0));
             match def {
                 Def::MacroArg => { /* OK */ }
                 _ => {
@@ -196,14 +204,14 @@ impl Validator {
             SymbolKind::Expr(ref mut expr) => {
                 try!(self.validate_expr(scope, expr));
             }
-            SymbolKind::AmbiguousId(name) => {
-                try!(self.rewrite_ambiguous_id(scope, name, symbol));
+            SymbolKind::AmbiguousId(_) => {
+                try!(self.rewrite_ambiguous_id(scope, symbol));
             }
             SymbolKind::Terminal(_) => { /* see postvalidate! */ }
-            SymbolKind::Nonterminal(id) => {
+            SymbolKind::Nonterminal(ref id) => {
                 // in normal operation, the parser never produces Nonterminal(_) entries,
                 // but during testing we do produce nonterminal entries
-                let def = try!(self.validate_id(scope, symbol.span, id.0));
+                let def = try!(self.validate_id(scope, symbol.span, &id.0));
                 match def {
                     Def::Nonterminal(0) | Def::MacroArg => {
                         // OK
@@ -220,7 +228,7 @@ impl Validator {
             }
             SymbolKind::Macro(ref mut msym) => {
                 debug_assert!(msym.args.len() > 0);
-                let def = try!(self.validate_id(scope, symbol.span, msym.name.0));
+                let def = try!(self.validate_id(scope, symbol.span, &msym.name.0));
                 match def {
                     Def::Nonterminal(0) | Def::Terminal | Def::MacroArg => return_err!(
                         symbol.span,
@@ -258,13 +266,13 @@ impl Validator {
         Ok(())
     }
 
-    fn rewrite_ambiguous_id(
-        &self,
-        scope: &ScopeChain,
-        id: InternedString,
-        symbol: &mut Symbol,
-    ) -> NormResult<()> {
-        symbol.kind = match try!(self.validate_id(scope, symbol.span, id)) {
+    fn rewrite_ambiguous_id(&self, scope: &ScopeChain, symbol: &mut Symbol) -> NormResult<()> {
+        let id = if let SymbolKind::AmbiguousId(ref name) = symbol.kind {
+            name.clone()
+        } else {
+            panic!("Should never happen.");
+        };
+        symbol.kind = match try!(self.validate_id(scope, symbol.span, &id)) {
             Def::MacroArg | Def::Nonterminal(0) => SymbolKind::Nonterminal(NonterminalString(id)),
             Def::Terminal => SymbolKind::Terminal(TerminalString::Bare(id)),
             Def::Nonterminal(_) => return_err!(symbol.span, "`{}` is a macro", id),
@@ -272,7 +280,7 @@ impl Validator {
         Ok(())
     }
 
-    fn validate_id(&self, scope: &ScopeChain, span: Span, id: InternedString) -> NormResult<Def> {
+    fn validate_id(&self, scope: &ScopeChain, span: Span, id: &Atom) -> NormResult<Def> {
         match scope.def(id) {
             Some(def) => Ok(def),
             None => return_err!(span, "no definition found for `{}`", id),
@@ -281,9 +289,9 @@ impl Validator {
 }
 
 impl<'scope> ScopeChain<'scope> {
-    fn def(&self, id: InternedString) -> Option<Def> {
+    fn def(&self, id: &Atom) -> Option<Def> {
         self.identifiers
-            .get(&id)
+            .get(id)
             .cloned()
             .or_else(|| self.previous.and_then(|s| s.def(id)))
     }

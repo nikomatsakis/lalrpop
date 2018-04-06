@@ -5,7 +5,7 @@ tackle full expressions, let's start with something simple -- really
 simple. Let's just start with parenthesized integers, like `123` or
 `(123)` or even (hold on to your hats) `(((123)))`. Wow.
 
-To handle this, we'll need a to add a
+To handle this, we'll need to add a
 [`calculator1.lalrpop`][calculator1] as shown below. Note: to make
 explaining things easier, this version is maximally explicit; the next
 section will make it shorter by employing some shorthands that LALRPOP
@@ -81,7 +81,7 @@ pub Term: i32 = {
 ```
 
 First, this nonterminal is declared as `pub`. That means that LALRPOP
-will generate a public function (named, as we will see, `parse_Term`)
+will generate a public struct (named, as we will see, `TermParser`)
 that you can use to parse strings as `Term`. Private nonterminals
 (like `Num`) can only be used within the grammar itself, not from
 outside.
@@ -95,9 +95,9 @@ number; so `22` is a term. The second alternative is `"(" <t:Term>
 
 **Invoking the parser.** OK, so we wrote our parser, how do we use it?
 For every nonterminal `Foo` declared as `pub`, LALRPOP will export a
-`parse_Foo` fn that you can call to parse a string as that
-nonterminal. Here is a simple test that we've added to our
-[`main.rs`][main] file which uses this function to test our `Term`
+`FooParser` struct with a `parse` method that you can call to parse a
+string as that nonterminal. Here is a simple test that we've added to 
+our [`main.rs`][main] file which uses this struct to test our `Term`
 nonterminal:
 
 ```rust
@@ -105,17 +105,17 @@ pub mod calculator1; // synthesized by LALRPOP
 
 #[test]
 fn calculator1() {
-    assert!(calculator1::parse_Term("22").is_ok());
-    assert!(calculator1::parse_Term("(22)").is_ok());
-    assert!(calculator1::parse_Term("((((22))))").is_ok());
-    assert!(calculator1::parse_Term("((22)").is_err());
+    assert!(calculator1::TermParser::new().parse("22").is_ok());
+    assert!(calculator1::TermParser::new().parse("(22)").is_ok());
+    assert!(calculator1::TermParser::new().parse("((((22))))").is_ok());
+    assert!(calculator1::TermParser::new().parse("((22)").is_err());
 }
 ```
 
-The full signature of the parse function looks like this:
+The full signature of the parse method looks like this:
 
 ```rust
-fn parse_Term<'input>(input: &'input str)
+fn parse<'input>(&self, input: &'input str)
                      -> Result<i32, ParseError<usize,(usize, &'input str),()>>
                      //        ~~~  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
                      //         |                       |

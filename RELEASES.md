@@ -1,3 +1,50 @@
+# Version 0.15.1
+
+Fixes:
+- Don't overflow the stack in parse table debug builds (#337) 
+- Use the correct type for `!` in macro expanded productions (#335)
+- Allow lalrpop parsers to be used with include! (#338)
+- Remove dependency on docopt, rustc-serialize, update itertools  (#344, #345)
+- Correctly anchor regex at the beginning (#358)
+
+Thanks to the following contributors for this release:
+- @Marwes
+- @mbrubek
+- @waywardmonkeys
+- @sanxiyn
+- @17cupsofcoffee
+- @matklad
+
+# Version 0.15
+
+Features:
+
+- The source and binary size of generated parsers has been reduced (#324, #306)
+- Regex compilation as part of the generated lexer can now be cached (#318)
+- The documentation is now provided as a [mbbook](http://lalrpop.github.io/lalrpop/) (#298)
+
+Bugs fixed:
+
+- Fixed a stack overflow in debug builds of large grammars (#337)
+- The error terminal now gets the correct type assigned when part of macros (#335)
+- Character literals now parse correctly in the parser files (#320)
+
+Compatibility notes:
+
+- To let regex compilation be cached, each parser are now generated as a struct
+  with a `parse` method instead of just a function.
+  To upgrade, change each parse call from `parse_X(..)` to `X::new().parse(..)`.
+
+Thanks to the following contributors for this release:
+
+- @Phlosioneer
+- @waywardmonkeys
+- @brendanzab
+- @dtkerr
+- @Marwes
+- @ahmedcharles
+- @udoprog
+
 # Version 0.14
 
 Bugs fixed:

@@ -1,4 +1,4 @@
-use intern::InternedString;
+use string_cache::DefaultAtom as Atom;
 use grammar::parse_tree::{ActionKind, Alternative, ExprSymbol, Symbol, SymbolKind};
 
 #[derive(Debug)]
@@ -9,7 +9,7 @@ pub enum AlternativeAction<'a> {
 
 #[derive(Debug)]
 pub enum Symbols<'a> {
-    Named(Vec<(usize, InternedString, &'a Symbol)>),
+    Named(Vec<(usize, Atom, &'a Symbol)>),
     Anon(Vec<(usize, &'a Symbol)>),
 }
 
@@ -28,7 +28,7 @@ pub fn analyze_expr<'a>(expr: &'a ExprSymbol) -> Symbols<'a> {
         .iter()
         .enumerate()
         .filter_map(|(idx, sym)| match sym.kind {
-            SymbolKind::Name(id, ref sub) => Some((idx, id, &**sub)),
+            SymbolKind::Name(ref id, ref sub) => Some((idx, id.clone(), &**sub)),
             _ => None,
         })
         .collect();

@@ -24,7 +24,7 @@ the TTY settings), you might make your `build.rs` file look like so:
 extern crate lalrpop;
 
 fn main() {
-    Configuration::new()
+    lalrpop::Configuration::new()
         .always_use_colors()
         .process_current_dir();
 }

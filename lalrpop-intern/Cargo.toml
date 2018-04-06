@@ -1,8 +1,8 @@
 [package]
 name = "lalrpop-intern"
-version = "0.14.0" # LALRPOP
+version = "0.15.1" # LALRPOP
 description = "Simple string interner used by LALRPOP"
-repository = "https://github.com/nikomatsakis/lalrpop"
+repository = "https://github.com/lalrpop/lalrpop"
 license = "Apache-2.0/MIT"
 authors = ["Niko Matsakis <niko@alum.mit.edu>"]
 workspace = ".."

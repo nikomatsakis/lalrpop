@@ -1,11 +1,7 @@
-/*!
+//! The "parse-tree" is what is produced by the parser. We use it do
+//! some pre-expansion and so forth before creating the proper AST.
 
-The "parse-tree" is what is produced by the parser. We use it do
-some pre-expansion and so forth before creating the proper AST.
-
-*/
-
-use intern::{intern, InternedString};
+use string_cache::DefaultAtom as Atom;
 use lexer::dfa::DFA;
 use grammar::consts::{LALR, RECURSIVE_ASCENT, TABLE_DRIVEN, TEST_ALL};
 use grammar::repr::{self as r, NominalTypeRepr, TypeRepr};
@@ -23,9 +19,10 @@ pub struct Grammar {
     pub span: Span,
     pub type_parameters: Vec<TypeParameter>,
     pub parameters: Vec<Parameter>,
-    pub where_clauses: Vec<String>,
+    pub where_clauses: Vec<WhereClause<TypeRef>>,
     pub items: Vec<GrammarItem>,
     pub annotations: Vec<Annotation>,
+    pub module_attributes: Vec<String>,
 }
 
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -174,7 +171,7 @@ pub struct ExternToken {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AssociatedType {
     pub type_span: Span,
-    pub type_name: InternedString,
+    pub type_name: Atom,
     pub type_ref: TypeRef,
 }
 
@@ -192,10 +189,10 @@ pub struct Conversion {
     pub to: Pattern<TypeRef>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Path {
     pub absolute: bool,
-    pub ids: Vec<InternedString>,
+    pub ids: Vec<Atom>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -210,25 +207,142 @@ pub enum TypeRef {
     },
 
     Ref {
-        lifetime: Option<InternedString>,
+        lifetime: Option<Atom>,
         mutable: bool,
         referent: Box<TypeRef>,
     },
 
     // 'x ==> only should appear within nominal types, but what do we care
-    Lifetime(InternedString),
+    Lifetime(Atom),
 
     // Foo or Bar ==> treated specially since macros may care
-    Id(InternedString),
+    Id(Atom),
 
     // <N> ==> type of a nonterminal, emitted by macro expansion
     OfSymbol(SymbolKind),
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum WhereClause<T> {
+    // 'a: 'b + 'c
+    Lifetime {
+        lifetime: Atom,
+        bounds: Vec<Atom>,
+    },
+    // where for<'a> &'a T: Debug + Into<usize>
+    Type {
+        forall: Option<Vec<Atom>>,
+        ty: T,
+        bounds: Vec<TypeBound<T>>,
+    },
+}
+
+impl<T> WhereClause<T> {
+    pub fn map<F, U>(&self, mut f: F) -> WhereClause<U>
+    where
+        F: FnMut(&T) -> U,
+    {
+        match *self {
+            WhereClause::Lifetime {
+                ref lifetime,
+                ref bounds,
+            } => WhereClause::Lifetime {
+                lifetime: lifetime.clone(),
+                bounds: bounds.clone(),
+            },
+            WhereClause::Type {
+                ref forall,
+                ref ty,
+                ref bounds,
+            } => WhereClause::Type {
+                forall: forall.clone(),
+                ty: f(ty),
+                bounds: bounds.iter().map(|b| b.map(&mut f)).collect(),
+            },
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum TypeBound<T> {
+    // The `'a` in `T: 'a`.
+    Lifetime(Atom),
+    // `for<'a> FnMut(&'a usize)`
+    Fn {
+        forall: Option<Vec<Atom>>,
+        path: Path,
+        parameters: Vec<T>,
+        ret: Option<T>,
+    },
+    // `some::Trait` or `some::Trait<Param, ...>` or `some::Trait<Item = Assoc>`
+    // or `for<'a> Trait<'a, T>`
+    Trait {
+        forall: Option<Vec<Atom>>,
+        path: Path,
+        parameters: Vec<TypeBoundParameter<T>>,
+    },
+}
+
+impl<T> TypeBound<T> {
+    pub fn map<F, U>(&self, mut f: F) -> TypeBound<U>
+    where
+        F: FnMut(&T) -> U,
+    {
+        match *self {
+            TypeBound::Lifetime(ref l) => TypeBound::Lifetime(l.clone()),
+            TypeBound::Fn {
+                ref forall,
+                ref path,
+                ref parameters,
+                ref ret,
+            } => TypeBound::Fn {
+                forall: forall.clone(),
+                path: path.clone(),
+                parameters: parameters.iter().map(&mut f).collect(),
+                ret: ret.as_ref().map(f),
+            },
+            TypeBound::Trait {
+                ref forall,
+                ref path,
+                ref parameters,
+            } => TypeBound::Trait {
+                forall: forall.clone(),
+                path: path.clone(),
+                parameters: parameters.iter().map(|p| p.map(&mut f)).collect(),
+            },
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum TypeBoundParameter<T> {
+    // 'a
+    Lifetime(Atom),
+    // `T` or `'a`
+    TypeParameter(T),
+    // `Item = T`
+    Associated(Atom, T),
+}
+
+impl<T> TypeBoundParameter<T> {
+    pub fn map<F, U>(&self, mut f: F) -> TypeBoundParameter<U>
+    where
+        F: FnMut(&T) -> U,
+    {
+        match *self {
+            TypeBoundParameter::Lifetime(ref l) => TypeBoundParameter::Lifetime(l.clone()),
+            TypeBoundParameter::TypeParameter(ref t) => TypeBoundParameter::TypeParameter(f(t)),
+            TypeBoundParameter::Associated(ref id, ref t) => {
+                TypeBoundParameter::Associated(id.clone(), f(t))
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TypeParameter {
-    Lifetime(InternedString),
-    Id(InternedString),
+    Lifetime(Atom),
+    Id(Atom),
 }
 
 impl TypeParameter {
@@ -242,14 +356,28 @@ impl TypeParameter {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Parameter {
-    pub name: InternedString,
+    pub name: Atom,
     pub ty: TypeRef,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Visibility {
+    Pub(Option<Path>),
+    Priv,
+}
+
+impl Visibility {
+    pub fn is_pub(&self) -> bool {
+        match *self {
+            Visibility::Pub(_) => true,
+            Visibility::Priv => false,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NonterminalData {
-    // a "public" nonterminal is one that we will use as a start symbol
-    pub public: bool,
+    pub visibility: Visibility,
     pub name: NonterminalString,
     pub annotations: Vec<Annotation>,
     pub span: Span,
@@ -261,7 +389,7 @@ pub struct NonterminalData {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Annotation {
     pub id_span: Span,
-    pub id: InternedString,
+    pub id: Atom,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -289,7 +417,7 @@ pub enum ActionKind {
 pub struct Condition {
     pub span: Span,
     pub lhs: NonterminalString, // X
-    pub rhs: InternedString,    // "Foo"
+    pub rhs: Atom,              // "Foo"
     pub op: ConditionOp,
 }
 
@@ -320,7 +448,7 @@ pub enum SymbolKind {
     Expr(ExprSymbol),
 
     // foo, before name resolution
-    AmbiguousId(InternedString),
+    AmbiguousId(Atom),
 
     // "foo" and foo (after name resolution)
     Terminal(TerminalString),
@@ -338,7 +466,7 @@ pub enum SymbolKind {
     Choose(Box<Symbol>),
 
     // x:X
-    Name(InternedString, Box<Symbol>),
+    Name(Atom, Box<Symbol>),
 
     // @L
     Lookahead,
@@ -349,34 +477,34 @@ pub enum SymbolKind {
     Error,
 }
 
-#[derive(Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TerminalString {
     Literal(TerminalLiteral),
-    Bare(InternedString),
+    Bare(Atom),
     Error,
 }
 
 impl TerminalString {
     pub fn as_literal(&self) -> Option<TerminalLiteral> {
         match *self {
-            TerminalString::Literal(l) => Some(l),
+            TerminalString::Literal(ref l) => Some(l.clone()),
             _ => None,
         }
     }
 
     pub fn display_len(&self) -> usize {
         match *self {
-            TerminalString::Literal(x) => x.display_len(),
-            TerminalString::Bare(x) => x.len(),
+            TerminalString::Literal(ref x) => x.display_len(),
+            TerminalString::Bare(ref x) => x.len(),
             TerminalString::Error => "error".len(),
         }
     }
 }
 
-#[derive(Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TerminalLiteral {
-    Quoted(InternedString),
-    Regex(InternedString),
+    Quoted(Atom),
+    Regex(Atom),
 }
 
 impl TerminalLiteral {
@@ -392,14 +520,14 @@ impl TerminalLiteral {
 
     pub fn display_len(&self) -> usize {
         match *self {
-            TerminalLiteral::Quoted(x) => x.len(),
-            TerminalLiteral::Regex(x) => x.len() + "####r".len(),
+            TerminalLiteral::Quoted(ref x) => x.len(),
+            TerminalLiteral::Regex(ref x) => x.len() + "####r".len(),
         }
     }
 }
 
-#[derive(Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct NonterminalString(pub InternedString);
+#[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct NonterminalString(pub Atom);
 
 impl NonterminalString {
     pub fn len(&self) -> usize {
@@ -443,11 +571,11 @@ pub struct MacroSymbol {
 }
 
 impl TerminalString {
-    pub fn quoted(i: InternedString) -> TerminalString {
+    pub fn quoted(i: Atom) -> TerminalString {
         TerminalString::Literal(TerminalLiteral::Quoted(i))
     }
 
-    pub fn regex(i: InternedString) -> TerminalString {
+    pub fn regex(i: Atom) -> TerminalString {
         TerminalString::Literal(TerminalLiteral::Regex(i))
     }
 }
@@ -552,11 +680,146 @@ impl Symbol {
     }
 }
 
+impl Display for Visibility {
+    fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
+        match *self {
+            Visibility::Pub(Some(ref path)) => write!(fmt, "pub({}) ", path),
+            Visibility::Pub(None) => write!(fmt, "pub "),
+            Visibility::Priv => Ok(()),
+        }
+    }
+}
+
+impl<T: Display> Display for WhereClause<T> {
+    fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
+        match *self {
+            WhereClause::Lifetime {
+                ref lifetime,
+                ref bounds,
+            } => {
+                write!(fmt, "{}:", lifetime)?;
+                for (i, b) in bounds.iter().enumerate() {
+                    if i != 0 {
+                        write!(fmt, " +")?;
+                    }
+                    write!(fmt, " {}", b)?;
+                }
+                Ok(())
+            }
+            WhereClause::Type {
+                ref forall,
+                ref ty,
+                ref bounds,
+            } => {
+                if let Some(ref forall) = *forall {
+                    write!(fmt, "for<")?;
+                    for (i, l) in forall.iter().enumerate() {
+                        if i != 0 {
+                            write!(fmt, ", ")?;
+                        }
+                        write!(fmt, "{}", l)?;
+                    }
+                    write!(fmt, "> ")?;
+                }
+
+                write!(fmt, "{}: ", ty)?;
+                for (i, b) in bounds.iter().enumerate() {
+                    if i != 0 {
+                        write!(fmt, " +")?;
+                    }
+                    write!(fmt, " {}", b)?;
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
+impl<T: Display> Display for TypeBound<T> {
+    fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
+        match *self {
+            TypeBound::Lifetime(ref l) => write!(fmt, "{}", l),
+            TypeBound::Fn {
+                ref forall,
+                ref path,
+                ref parameters,
+                ref ret,
+            } => {
+                if let Some(ref forall) = *forall {
+                    write!(fmt, "for<")?;
+                    for (i, l) in forall.iter().enumerate() {
+                        if i != 0 {
+                            write!(fmt, ", ")?;
+                        }
+                        write!(fmt, "{}", l)?;
+                    }
+                    write!(fmt, "> ")?;
+                }
+
+                write!(fmt, "{}(", path)?;
+                for (i, p) in parameters.iter().enumerate() {
+                    if i != 0 {
+                        write!(fmt, ", ")?;
+                    }
+                    write!(fmt, "{}", p)?;
+                }
+                write!(fmt, ")")?;
+
+                if let Some(ref ret) = *ret {
+                    write!(fmt, " -> {}", ret)?;
+                }
+
+                Ok(())
+            }
+            TypeBound::Trait {
+                ref forall,
+                ref path,
+                ref parameters,
+            } => {
+                if let Some(ref forall) = *forall {
+                    write!(fmt, "for<")?;
+                    for (i, l) in forall.iter().enumerate() {
+                        if i != 0 {
+                            write!(fmt, ", ")?;
+                        }
+                        write!(fmt, "{}", l)?;
+                    }
+                    write!(fmt, "> ")?;
+                }
+
+                write!(fmt, "{}", path)?;
+                if parameters.is_empty() {
+                    return Ok(());
+                }
+
+                write!(fmt, "<")?;
+                for (i, p) in parameters.iter().enumerate() {
+                    if i != 0 {
+                        write!(fmt, ", ")?;
+                    }
+                    write!(fmt, "{}", p)?;
+                }
+                write!(fmt, ">")
+            }
+        }
+    }
+}
+
+impl<T: Display> Display for TypeBoundParameter<T> {
+    fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
+        match *self {
+            TypeBoundParameter::Lifetime(ref l) => write!(fmt, "{}", l),
+            TypeBoundParameter::TypeParameter(ref t) => write!(fmt, "{}", t),
+            TypeBoundParameter::Associated(ref id, ref t) => write!(fmt, "{} = {}", id, t),
+        }
+    }
+}
+
 impl Display for TerminalString {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
         match *self {
-            TerminalString::Literal(s) => write!(fmt, "{}", s),
-            TerminalString::Bare(s) => write!(fmt, "{}", s),
+            TerminalString::Literal(ref s) => write!(fmt, "{}", s),
+            TerminalString::Bare(ref s) => write!(fmt, "{}", s),
             TerminalString::Error => write!(fmt, "error"),
         }
     }
@@ -571,8 +834,8 @@ impl Debug for TerminalString {
 impl Display for TerminalLiteral {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
         match *self {
-            TerminalLiteral::Quoted(s) => write!(fmt, "{:?}", s), // the Debug impl adds the `"` and escaping
-            TerminalLiteral::Regex(s) => write!(fmt, "r#{:?}#", s), // FIXME -- need to determine proper number of #
+            TerminalLiteral::Quoted(ref s) => write!(fmt, "{:?}", s.as_ref()), // the Debug impl adds the `"` and escaping
+            TerminalLiteral::Regex(ref s) => write!(fmt, "r#{:?}#", s.as_ref()), // FIXME -- need to determine proper number of #
         }
     }
 }
@@ -589,7 +852,7 @@ impl Display for Path {
             fmt,
             "{}{}",
             if self.absolute { "::" } else { "" },
-            Sep("::", &self.ids)
+            Sep("::", &self.ids),
         )
     }
 }
@@ -622,7 +885,7 @@ impl Display for SymbolKind {
             SymbolKind::Macro(ref m) => write!(fmt, "{}", m),
             SymbolKind::Repeat(ref r) => write!(fmt, "{}", r),
             SymbolKind::Choose(ref s) => write!(fmt, "<{}>", s),
-            SymbolKind::Name(n, ref s) => write!(fmt, "{}:{}", n, s),
+            SymbolKind::Name(ref n, ref s) => write!(fmt, "{}:{}", n, s),
             SymbolKind::Lookahead => write!(fmt, "@L"),
             SymbolKind::Lookbehind => write!(fmt, "@R"),
             SymbolKind::Error => write!(fmt, "error"),
@@ -653,7 +916,7 @@ impl Display for ExprSymbol {
 }
 
 impl ExternToken {
-    pub fn associated_type(&self, name: InternedString) -> Option<&AssociatedType> {
+    pub fn associated_type(&self, name: Atom) -> Option<&AssociatedType> {
         self.associated_types
             .iter()
             .filter(|a| a.type_name == name)
@@ -688,8 +951,8 @@ impl Display for MacroSymbol {
 impl Display for TypeParameter {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
         match *self {
-            TypeParameter::Lifetime(s) => write!(fmt, "{}", s),
-            TypeParameter::Id(s) => write!(fmt, "{}", s),
+            TypeParameter::Lifetime(ref s) => write!(fmt, "{}", s),
+            TypeParameter::Id(ref s) => write!(fmt, "{}", s),
         }
     }
 }
@@ -718,7 +981,7 @@ impl Display for TypeRef {
                 ref referent,
             } => write!(fmt, "&{}", referent),
             TypeRef::Ref {
-                lifetime: Some(l),
+                lifetime: Some(ref l),
                 mutable: false,
                 ref referent,
             } => write!(fmt, "&{} {}", l, referent),
@@ -728,7 +991,7 @@ impl Display for TypeRef {
                 ref referent,
             } => write!(fmt, "&mut {}", referent),
             TypeRef::Ref {
-                lifetime: Some(l),
+                lifetime: Some(ref l),
                 mutable: true,
                 ref referent,
             } => write!(fmt, "&{} mut {}", l, referent),
@@ -752,18 +1015,18 @@ impl TypeRef {
                 path: path.clone(),
                 types: types.iter().map(TypeRef::type_repr).collect(),
             }),
-            TypeRef::Lifetime(id) => TypeRepr::Lifetime(id),
-            TypeRef::Id(id) => TypeRepr::Nominal(NominalTypeRepr {
-                path: Path::from_id(id),
+            TypeRef::Lifetime(ref id) => TypeRepr::Lifetime(id.clone()),
+            TypeRef::Id(ref id) => TypeRepr::Nominal(NominalTypeRepr {
+                path: Path::from_id(id.clone()),
                 types: vec![],
             }),
             TypeRef::OfSymbol(_) => unreachable!("OfSymbol produced by parser"),
             TypeRef::Ref {
-                lifetime,
+                ref lifetime,
                 mutable,
                 ref referent,
             } => TypeRepr::Ref {
-                lifetime: lifetime,
+                lifetime: lifetime.clone(),
                 mutable: mutable,
                 referent: Box::new(referent.type_repr()),
             },
@@ -772,7 +1035,7 @@ impl TypeRef {
 }
 
 impl Path {
-    pub fn from_id(id: InternedString) -> Path {
+    pub fn from_id(id: Atom) -> Path {
         Path {
             absolute: false,
             ids: vec![id],
@@ -782,34 +1045,38 @@ impl Path {
     pub fn usize() -> Path {
         Path {
             absolute: false,
-            ids: vec![intern("usize")],
+            ids: vec![Atom::from("usize")],
         }
     }
 
     pub fn str() -> Path {
         Path {
             absolute: false,
-            ids: vec![intern("str")],
+            ids: vec![Atom::from("str")],
         }
     }
 
     pub fn vec() -> Path {
         Path {
             absolute: true,
-            ids: vec![intern("std"), intern("vec"), intern("Vec")],
+            ids: vec![Atom::from("std"), Atom::from("vec"), Atom::from("Vec")],
         }
     }
 
     pub fn option() -> Path {
         Path {
             absolute: true,
-            ids: vec![intern("std"), intern("option"), intern("Option")],
+            ids: vec![
+                Atom::from("std"),
+                Atom::from("option"),
+                Atom::from("Option"),
+            ],
         }
     }
 
-    pub fn as_id(&self) -> Option<InternedString> {
+    pub fn as_id(&self) -> Option<Atom> {
         if !self.absolute && self.ids.len() == 1 {
-            Some(self.ids[0])
+            Some(self.ids[0].clone())
         } else {
             None
         }
@@ -818,18 +1085,18 @@ impl Path {
 
 pub fn read_algorithm(annotations: &[Annotation], algorithm: &mut r::Algorithm) {
     for annotation in annotations {
-        if annotation.id == intern(LALR) {
+        if annotation.id == Atom::from(LALR) {
             algorithm.lalr = true;
-        } else if annotation.id == intern(TABLE_DRIVEN) {
+        } else if annotation.id == Atom::from(TABLE_DRIVEN) {
             algorithm.codegen = r::LrCodeGeneration::TableDriven;
-        } else if annotation.id == intern(RECURSIVE_ASCENT) {
+        } else if annotation.id == Atom::from(RECURSIVE_ASCENT) {
             algorithm.codegen = r::LrCodeGeneration::RecursiveAscent;
-        } else if annotation.id == intern(TEST_ALL) {
+        } else if annotation.id == Atom::from(TEST_ALL) {
             algorithm.codegen = r::LrCodeGeneration::TestAll;
         } else {
             panic!(
                 "validation permitted unknown annotation: {:?}",
-                annotation.id
+                annotation.id,
             );
         }
     }

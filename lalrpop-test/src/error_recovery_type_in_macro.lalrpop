@@ -1,0 +1,21 @@
+
+use util::tok::Tok;
+
+#[LALR]
+grammar<'input>();
+
+extern {
+    type Location = usize;
+    enum Tok {
+        "(" => Tok::LParen,
+    }
+}
+
+Macro<T>: T = {
+    <T>
+};
+
+pub Expr: ()  = {
+    Macro<!> => (),
+};
+

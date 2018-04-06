@@ -2,7 +2,7 @@
 
 [![Join the chat at https://gitter.im/lalrpop/Lobby](https://badges.gitter.im/lalrpop/Lobby.svg)](https://gitter.im/lalrpop/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-![Build status](https://travis-ci.org/lalrpop/lalrpop.svg?branch=master)
+[![Build status](https://travis-ci.org/lalrpop/lalrpop.svg?branch=master)](https://travis-ci.org/lalrpop/lalrpop)
 
 LALRPOP is a Rust parser generator framework with *usability* as its
 primary goal. You should be able to write compact, DRY, readable
@@ -36,9 +36,16 @@ to! Here are some tips:
   how to add LALRPOP to your `Cargo.toml`.
 - The [advanced setup] chapter shows how to configure other aspects of LALRPOP's
   preprocessing.
+  
+### Example Uses
+
+- [LALRPOP] is itself implemented in LALRPOP.
+- [Gluon] is a statically typed functional programming language.
 
 [The LALRPOP book]: http://lalrpop.github.io/lalrpop/
 [quick start guide]: http://lalrpop.github.io/lalrpop/quick_start_guide.html
 [advanced setup]: http://lalrpop.github.io/lalrpop/advanced_setup.html
 [tutorial]: http://lalrpop.github.io/lalrpop/tutorial/index.html
+[LALRPOP]: https://github.com/lalrpop/lalrpop/blob/8034f3dacc4b20581bd10c5cb0b4f9faae778bb5/lalrpop/src/parser/lrgrammar.lalrpop
+[Gluon]: https://github.com/gluon-lang/gluon/blob/d7ce3e81c1fcfdf25cdd6d1abde2b6e376b4bf50/parser/src/grammar.lalrpop
 

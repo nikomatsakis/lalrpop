@@ -53,7 +53,7 @@ pub struct TraceGraph<'grammar> {
     indices: Map<TraceGraphNode<'grammar>, NodeIndex>,
 }
 
-#[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub enum TraceGraphNode<'grammar> {
     Nonterminal(NonterminalString),
     Item(LR0Item<'grammar>),
@@ -74,7 +74,7 @@ impl<'grammar> TraceGraph<'grammar> {
         let node = node.into();
         let graph = &mut self.graph;
         *self.indices
-            .entry(node)
+            .entry(node.clone())
             .or_insert_with(|| graph.add_node(node))
     }
 
@@ -147,12 +147,12 @@ impl<'grammar> Debug for TraceGraphEdge<'grammar> {
 impl<'grammar> Debug for TraceGraph<'grammar> {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
         let mut s = fmt.debug_list();
-        for (&node, &index) in &self.indices {
+        for (node, &index) in &self.indices {
             for edge in self.graph.edges_directed(index, EdgeDirection::Outgoing) {
                 let label = edge.weight();
                 s.entry(&TraceGraphEdge {
-                    from: node,
-                    to: self.graph[edge.target()],
+                    from: node.clone(),
+                    to: self.graph[edge.target()].clone(),
                     label: (label.prefix, label.cursor, label.suffix),
                 });
             }
@@ -348,7 +348,7 @@ impl<'graph, 'grammar> PathEnumerator<'graph, 'grammar> {
         let cursor = symbols.len();
 
         match self.stack[1].symbol_sets.cursor {
-            Some(&s) => symbols.push(ExampleSymbol::Symbol(s)),
+            Some(s) => symbols.push(ExampleSymbol::Symbol(s.clone())),
             None => if self.stack[1].symbol_sets.prefix.is_empty() {
                 symbols.push(ExampleSymbol::Epsilon)
             } else {
@@ -370,8 +370,8 @@ impl<'graph, 'grammar> PathEnumerator<'graph, 'grammar> {
             .rev()
             .map(|state| {
                 let nonterminal = match self.graph.graph[state.index] {
-                    TraceGraphNode::Nonterminal(nonterminal) => nonterminal,
-                    TraceGraphNode::Item(item) => item.production.nonterminal,
+                    TraceGraphNode::Nonterminal(ref nonterminal) => nonterminal.clone(),
+                    TraceGraphNode::Item(ref item) => item.production.nonterminal.clone(),
                 };
                 let reduction = Reduction {
                     start: cursors.0,

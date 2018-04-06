@@ -73,7 +73,7 @@ where
         self.state_stack.push(StateIndex(0));
 
         let mut token = tokens.next();
-        while let Some(terminal) = token {
+        while let Some(terminal) = token.clone() {
             let state = self.top_state();
 
             println!("state={:?}", state);
@@ -81,14 +81,15 @@ where
 
             // check whether we can shift this token
             if let Some(&next_index) = state.shifts.get(&terminal) {
-                self.data_stack.push(ParseTree::Terminal(terminal));
+                self.data_stack.push(ParseTree::Terminal(terminal.clone()));
                 self.state_stack.push(next_index);
                 token = tokens.next();
-            } else if let Some(production) = L::reduction(state, Token::Terminal(terminal)) {
+            } else if let Some(production) = L::reduction(state, &Token::Terminal(terminal.clone()))
+            {
                 let more = self.reduce(production);
                 assert!(more);
             } else {
-                return Err((state, Token::Terminal(terminal)));
+                return Err((state, Token::Terminal(terminal.clone())));
             }
         }
 
@@ -104,7 +105,7 @@ where
         // drain now for EOF
         loop {
             let state = self.top_state();
-            match L::reduction(state, Token::EOF) {
+            match L::reduction(state, &Token::EOF) {
                 None => {
                     return Err((state, Token::EOF));
                 }
@@ -136,7 +137,7 @@ where
         }
 
         // construct the new, reduced tree and push it on the stack
-        let tree = ParseTree::Nonterminal(production.nonterminal, popped);
+        let tree = ParseTree::Nonterminal(production.nonterminal.clone(), popped);
         self.data_stack.push(tree);
 
         // recover the state and extract the "Goto" action
@@ -162,8 +163,10 @@ impl Debug for ParseTree {
 impl Display for ParseTree {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
         match *self {
-            ParseTree::Nonterminal(id, ref trees) => write!(fmt, "[{}: {}]", id, Sep(", ", trees)),
-            ParseTree::Terminal(id) => write!(fmt, "{}", id),
+            ParseTree::Nonterminal(ref id, ref trees) => {
+                write!(fmt, "[{}: {}]", id, Sep(", ", trees))
+            }
+            ParseTree::Terminal(ref id) => write!(fmt, "{}", id),
         }
     }
 }
@@ -171,14 +174,14 @@ impl Display for ParseTree {
 pub trait LookaheadInterpret: Lookahead {
     fn reduction<'grammar>(
         state: &State<'grammar, Self>,
-        token: Token,
+        token: &Token,
     ) -> Option<&'grammar Production>;
 }
 
 impl LookaheadInterpret for Nil {
     fn reduction<'grammar>(
         state: &State<'grammar, Self>,
-        _token: Token,
+        _token: &Token,
     ) -> Option<&'grammar Production> {
         state
             .reductions
@@ -191,7 +194,7 @@ impl LookaheadInterpret for Nil {
 impl LookaheadInterpret for TokenSet {
     fn reduction<'grammar>(
         state: &State<'grammar, Self>,
-        token: Token,
+        token: &Token,
     ) -> Option<&'grammar Production> {
         state
             .reductions

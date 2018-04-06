@@ -91,7 +91,7 @@ fn multiple_match_token() {
 #[test]
 fn match_after_extern_token() {
     check_err(
-        r#"match and extern definitions are mutually exclusive"#,
+        r#"match and extern \(with custom tokens\) definitions are mutually exclusive"#,
         r#"grammar; extern { enum Tok { } } match { _ }"#,
         r#"                                 ~~~~~      "#,
     );
@@ -100,7 +100,7 @@ fn match_after_extern_token() {
 #[test]
 fn extern_after_match_token() {
     check_err(
-        r#"extern and match definitions are mutually exclusive"#,
+        r#"extern \(with custom tokens\) and match definitions are mutually exclusive"#,
         r#"grammar; match { _ } extern { enum Tok { } }"#,
         r#"                     ~~~~~~                 "#,
     );
@@ -138,5 +138,14 @@ fn mixing_names_and_anonymous_values() {
         r#"anonymous symbols like this one cannot be combined with named symbols like `b:B`"#,
         r#"grammar; Term = { <A> <b:B> => Alien: Eighth passanger of Nostromo};"#,
         r#"                  ~~~                                               "#,
+    );
+}
+
+#[test]
+fn public_macros() {
+    check_err(
+        r#"macros cannot be marked public"#,
+        r#"grammar; pub Comma<T> = (T ",")* T?;"#,
+        r#"             ~~~~~~~~               "#,
     );
 }

@@ -1,8 +1,8 @@
 [package]
 name = "lalrpop-snap"
-version = "0.14.0" # LALRPOP
+version = "0.15.1" # LALRPOP
 description = "convenient LR(1) parser generator"
-repository = "https://github.com/nikomatsakis/lalrpop"
+repository = "https://github.com/lalrpop/lalrpop"
 readme = "../README.md"
 keywords = ["parser", "generator", "LR", "yacc", "grammar"]
 categories = ["parsing"]
@@ -19,23 +19,22 @@ ascii-canvas = "1.0"
 atty = "0.1.2"
 bit-set = "0.4.0"
 diff = "0.1.9"
-docopt = "0.7"
 ena = "0.5"
-itertools = "0.5.9"
+itertools = "0.7"
 regex = "0.2.1"
 regex-syntax = "0.4.0"
 petgraph = "0.4.4"
-rustc-serialize = "0.3"
+string_cache = "0.7.1"
 term = "0.4.5"
-unicode-xid = "0.0.4"
+unicode-xid = "0.1"
 
 [dev-dependencies]
-rand = "0.3"
+rand = "0.4"
 
 [dependencies.lalrpop-util]
 path = "../lalrpop-util"
-version = "0.14.0" # LALRPOP
+version = "0.15.1" # LALRPOP
 
 [dependencies.lalrpop-intern]
 path = "../lalrpop-intern"
-version = "0.14.0" # LALRPOP
+version = "0.15.1" # LALRPOP

@@ -73,16 +73,16 @@ impl<'grammar, L: Lookahead> Item<'grammar, L> {
         self.index < self.production.symbols.len()
     }
 
-    pub fn can_shift_nonterminal(&self, nt: NonterminalString) -> bool {
+    pub fn can_shift_nonterminal(&self, nt: &NonterminalString) -> bool {
         match self.shift_symbol() {
-            Some((Symbol::Nonterminal(shifted), _)) => shifted == nt,
+            Some((Symbol::Nonterminal(shifted), _)) => shifted == *nt,
             _ => false,
         }
     }
 
-    pub fn can_shift_terminal(&self, term: TerminalString) -> bool {
+    pub fn can_shift_terminal(&self, term: &TerminalString) -> bool {
         match self.shift_symbol() {
-            Some((Symbol::Terminal(shifted), _)) => shifted == term,
+            Some((Symbol::Terminal(shifted), _)) => shifted == *term,
             _ => false,
         }
     }
@@ -94,7 +94,7 @@ impl<'grammar, L: Lookahead> Item<'grammar, L> {
     pub fn shifted_item(&self) -> Option<(Symbol, Item<'grammar, L>)> {
         if self.can_shift() {
             Some((
-                self.production.symbols[self.index],
+                self.production.symbols[self.index].clone(),
                 Item {
                     production: self.production,
                     index: self.index + 1,
@@ -109,7 +109,7 @@ impl<'grammar, L: Lookahead> Item<'grammar, L> {
     pub fn shift_symbol(&self) -> Option<(Symbol, &[Symbol])> {
         if self.can_shift() {
             Some((
-                self.production.symbols[self.index],
+                self.production.symbols[self.index].clone(),
                 &self.production.symbols[self.index + 1..],
             ))
         } else {
@@ -143,13 +143,13 @@ pub struct State<'grammar, L: Lookahead> {
 pub type LR0State<'grammar> = State<'grammar, Nil>;
 pub type LR1State<'grammar> = State<'grammar, TokenSet>;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Action<'grammar> {
     Shift(TerminalString, StateIndex),
     Reduce(&'grammar Production),
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Conflict<'grammar, L> {
     // when in this state...
     pub state: StateIndex,
@@ -203,7 +203,7 @@ impl Display for Token {
         match *self {
             Token::EOF => write!(fmt, "EOF"),
             Token::Error => write!(fmt, "Error"),
-            Token::Terminal(s) => write!(fmt, "{}", s),
+            Token::Terminal(ref s) => write!(fmt, "{}", s),
         }
     }
 }
@@ -303,7 +303,7 @@ impl<'grammar, L: Lookahead> State<'grammar, L> {
             .vec
             .iter()
             .filter(|item| item.index > 0)
-            .map(|item| item.production.nonterminal)
+            .map(|item| item.production.nonterminal.clone())
             .dedup()
             .collect();
         if returnable_nonterminals.len() == 1 {

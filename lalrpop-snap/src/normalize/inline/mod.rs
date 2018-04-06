@@ -13,12 +13,12 @@ mod test;
 pub fn inline(mut grammar: Grammar) -> NormResult<Grammar> {
     let order = try!(graph::inline_order(&grammar));
     for nt in order {
-        inline_nt(&mut grammar, nt);
+        inline_nt(&mut grammar, &nt);
     }
     Ok(grammar)
 }
 
-fn inline_nt(grammar: &mut Grammar, inline_nt: NonterminalString) {
+fn inline_nt(grammar: &mut Grammar, inline_nt: &NonterminalString) {
     let inline_productions: Vec<_> = grammar.productions_for(inline_nt).iter().cloned().collect();
     for (_, data) in &mut grammar.nonterminals {
         let mut new_productions = vec![];
@@ -27,7 +27,7 @@ fn inline_nt(grammar: &mut Grammar, inline_nt: NonterminalString) {
         for into_production in &data.productions {
             if !into_production
                 .symbols
-                .contains(&Symbol::Nonterminal(inline_nt))
+                .contains(&Symbol::Nonterminal(inline_nt.clone()))
             {
                 new_productions.push(into_production.clone());
                 continue;
@@ -35,7 +35,7 @@ fn inline_nt(grammar: &mut Grammar, inline_nt: NonterminalString) {
 
             let mut inliner = Inliner {
                 action_fn_defns: &grammar.action_fn_defns,
-                inline_nonterminal: inline_nt,
+                inline_nonterminal: inline_nt.clone(),
                 into_production: into_production,
                 inline_fallible: 0,
                 inline_productions: &inline_productions,
@@ -107,20 +107,20 @@ impl<'a> Inliner<'a> {
             let prod_symbols: Vec<Symbol> = self.new_symbols
                 .iter()
                 .flat_map(|sym| match *sym {
-                    InlinedSymbol::Original(s) => vec![s],
+                    InlinedSymbol::Original(ref s) => vec![s.clone()],
                     InlinedSymbol::Inlined(_, ref s) => s.clone(),
                 })
                 .collect();
             self.new_productions.push(Production {
-                nonterminal: self.into_production.nonterminal,
+                nonterminal: self.into_production.nonterminal.clone(),
                 span: self.into_production.span,
                 symbols: prod_symbols,
                 action: action_fn,
             });
         } else {
-            let next_symbol = into_symbols[0];
-            match next_symbol {
-                Symbol::Nonterminal(n) if n == self.inline_nonterminal => {
+            let next_symbol = &into_symbols[0];
+            match *next_symbol {
+                Symbol::Nonterminal(ref n) if *n == self.inline_nonterminal => {
                     // Replace the current symbol with each of the
                     // `inline_productions` in turn.
                     for inline_production in self.inline_productions {
@@ -145,7 +145,8 @@ impl<'a> Inliner<'a> {
                     }
                 }
                 _ => {
-                    self.new_symbols.push(InlinedSymbol::Original(next_symbol));
+                    self.new_symbols
+                        .push(InlinedSymbol::Original(next_symbol.clone()));
                     self.inline(&into_symbols[1..]);
                     self.new_symbols.pop();
                 }

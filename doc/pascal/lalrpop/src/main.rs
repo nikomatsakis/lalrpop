@@ -1,5 +1,7 @@
 extern crate docopt;
-extern crate rustc_serialize;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde;
 
 use docopt::Docopt;
 use std::env;
@@ -11,7 +13,7 @@ mod pascal;
 
 fn main() {
     let args: Args = Docopt::new(USAGE)
-        .and_then(|d| d.argv(env::args()).decode())
+        .and_then(|d| d.argv(env::args()).deserialize())
         .unwrap_or_else(|e| e.exit());
 
     for input in &args.arg_inputs {
@@ -39,7 +41,7 @@ Usage: pascal <inputs>...
 Parses each input file.
 ";
 
-#[derive(Debug, RustcDecodable)]
+#[derive(Debug, Deserialize)]
 struct Args {
     arg_inputs: Vec<String>,
 }

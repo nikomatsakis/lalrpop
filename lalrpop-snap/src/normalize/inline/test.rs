@@ -1,6 +1,6 @@
 use grammar::parse_tree::NonterminalString;
 use grammar::repr::Grammar;
-use intern::intern;
+use string_cache::DefaultAtom as Atom;
 use normalize::{self, NormResult};
 use parser;
 use session::Session;
@@ -55,7 +55,7 @@ fn sri() {
     "#,
     ).unwrap();
 
-    let nt = NonterminalString(intern("E"));
+    let nt = NonterminalString(Atom::from("E"));
 
     // After inlining, we expect:
     //
@@ -64,7 +64,7 @@ fn sri() {
     // E = "&" "L" E
     //
     // Note that the `()` also gets inlined.
-    let e_productions = grammar.productions_for(nt);
+    let e_productions = grammar.productions_for(&nt);
     assert_eq!(e_productions.len(), 3);
     assert_eq!(format!("{:?}", e_productions[0].symbols), r#"["L"]"#);
     assert_eq!(format!("{:?}", e_productions[1].symbols), r#"["&", E]"#);
@@ -93,10 +93,10 @@ ET: () = {
 };
     "#,
     ).unwrap();
-    let nt = NonterminalString(intern("E"));
+    let nt = NonterminalString(Atom::from("E"));
 
     // The problem in issue #55 was that we would inline both `AT*`
     // the same way, so we ended up with `E = X { ET }` and `E = X {
     // AT+ ET AT+ }` but not `E = X { AT+ ET }` or `E = X { ET AT+ }`.
-    assert!(grammar.productions_for(nt).len() == 4);
+    assert!(grammar.productions_for(&nt).len() == 4);
 }

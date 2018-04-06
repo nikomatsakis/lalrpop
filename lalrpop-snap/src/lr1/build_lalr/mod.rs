@@ -116,15 +116,15 @@ pub fn collapse_to_lalr_states<'grammar>(lr_states: &[LR1State<'grammar>]) -> LR
         let lalr1_index = remap[lr1_index];
         let lalr1_state = &mut lalr1_states[lalr1_index.0];
 
-        for (&terminal, &lr1_state) in &lr1_state.shifts {
+        for (terminal, &lr1_state) in &lr1_state.shifts {
             let target_state = remap[lr1_state.0];
-            let prev = lalr1_state.shifts.insert(terminal, target_state);
+            let prev = lalr1_state.shifts.insert(terminal.clone(), target_state);
             assert!(prev.unwrap_or(target_state) == target_state);
         }
 
-        for (&nt, lr1_state) in &lr1_state.gotos {
+        for (nt, lr1_state) in &lr1_state.gotos {
             let target_state = remap[lr1_state.0];
-            let prev = lalr1_state.gotos.insert(nt, target_state);
+            let prev = lalr1_state.gotos.insert(nt.clone(), target_state);
             assert!(prev.unwrap_or(target_state) == target_state); // as above
         }
 

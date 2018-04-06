@@ -78,7 +78,7 @@ impl<'codegen, 'grammar, W: Write, C> CodeGenerator<'codegen, 'grammar, W, C> {
         rust!(
             self.out,
             "#![allow(non_snake_case, non_camel_case_types, unused_mut, unused_variables, \
-             unused_imports)]"
+             unused_imports, unused_parens)]"
         );
         rust!(self.out, "");
 
@@ -96,7 +96,14 @@ impl<'codegen, 'grammar, W: Write, C> CodeGenerator<'codegen, 'grammar, W, C> {
                 .write_uses(&format!("{}::", self.action_module), &self.grammar)
         );
 
-        if self.grammar.intern_token.is_none() {
+        if self.grammar.intern_token.is_some() {
+            rust!(
+                self.out,
+                "use {}::{}intern_token::Token;",
+                self.action_module,
+                self.prefix
+            );
+        } else {
             rust!(
                 self.out,
                 "use {}::{}ToTriple;",
@@ -114,7 +121,8 @@ impl<'codegen, 'grammar, W: Write, C> CodeGenerator<'codegen, 'grammar, W, C> {
 
         let (type_parameters, parameters, mut where_clauses);
 
-        if self.grammar.intern_token.is_some() {
+        let intern_token = self.grammar.intern_token.is_some();
+        if intern_token {
             // if we are generating the tokenizer, we just need the
             // input, and that has already been added as one of the
             // user parameters
@@ -145,14 +153,59 @@ impl<'codegen, 'grammar, W: Write, C> CodeGenerator<'codegen, 'grammar, W, C> {
             }
         }
 
-        try!(self.out.write_pub_fn_header(
+        rust!(
+            self.out,
+            "{}struct {}Parser {{",
+            self.grammar.nonterminals[&self.start_symbol].visibility,
+            self.user_start_symbol
+        );
+        if intern_token {
+            rust!(
+                self.out,
+                "builder: {1}::{0}intern_token::{0}MatcherBuilder,",
+                self.prefix,
+                self.action_module
+            );
+        }
+        rust!(self.out, "_priv: (),");
+        rust!(self.out, "}}");
+        rust!(self.out, "");
+
+        rust!(self.out, "impl {}Parser {{", self.user_start_symbol);
+        rust!(
+            self.out,
+            "{}fn new() -> {}Parser {{",
+            self.grammar.nonterminals[&self.start_symbol].visibility,
+            self.user_start_symbol
+        );
+        if intern_token {
+            rust!(
+                self.out,
+                "let {0}builder = {1}::{0}intern_token::{0}MatcherBuilder::new();",
+                self.prefix,
+                self.action_module
+            );
+        }
+        rust!(self.out, "{}Parser {{", self.user_start_symbol);
+        if intern_token {
+            rust!(self.out, "builder: {}builder,", self.prefix);
+        }
+        rust!(self.out, "_priv: (),");
+        rust!(self.out, "}}"); // Parser
+        rust!(self.out, "}}"); // new()
+        rust!(self.out, "");
+
+        rust!(self.out, "#[allow(dead_code)]");
+        try!(self.out.write_fn_header(
             self.grammar,
-            format!("parse_{}", self.user_start_symbol),
+            &self.grammar.nonterminals[&self.start_symbol].visibility,
+            "parse".to_owned(),
             type_parameters,
+            Some("&self".to_owned()),
             parameters,
             format!(
                 "Result<{}, {}>",
-                self.types.nonterminal_type(self.start_symbol),
+                self.types.nonterminal_type(&self.start_symbol),
                 parse_error_type
             ),
             where_clauses
@@ -167,10 +220,7 @@ impl<'codegen, 'grammar, W: Write, C> CodeGenerator<'codegen, 'grammar, W, C> {
             // if we are generating the tokenizer, create a matcher as our input iterator
             rust!(
                 self.out,
-                "let mut {}tokens = {}::{}intern_token::{}Matcher::new(input);",
-                self.prefix,
-                self.action_module,
-                self.prefix,
+                "let mut {}tokens = self.builder.matcher(input);",
                 self.prefix
             );
         } else {
@@ -199,7 +249,8 @@ impl<'codegen, 'grammar, W: Write, C> CodeGenerator<'codegen, 'grammar, W, C> {
     }
 
     pub fn end_parser_fn(&mut self) -> io::Result<()> {
-        rust!(self.out, "}}");
+        rust!(self.out, "}}"); // fn
+        rust!(self.out, "}}"); // impl
         Ok(())
     }
 

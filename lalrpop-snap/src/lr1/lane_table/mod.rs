@@ -22,6 +22,6 @@ fn conflicting_actions<'grammar, L: Lookahead>(
 ) -> Set<Action<'grammar>> {
     let conflicts = L::conflicts(state);
     let reductions = conflicts.iter().map(|c| Action::Reduce(c.production));
-    let actions = conflicts.iter().map(|c| c.action);
+    let actions = conflicts.iter().map(|c| c.action.clone());
     reductions.chain(actions).collect()
 }

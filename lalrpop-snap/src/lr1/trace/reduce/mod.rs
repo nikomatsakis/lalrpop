@@ -26,7 +26,7 @@ impl<'trace, 'grammar> Tracer<'trace, 'grammar> {
         // some epsilon reductions first if ...s is non-empty. We want
         // to trace back until we have (at least) one element of
         // context for the reduction.
-        let nonterminal = item.production.nonterminal; // X
+        let nonterminal = &item.production.nonterminal; // X
 
         // Add an edge
         //
@@ -35,7 +35,7 @@ impl<'trace, 'grammar> Tracer<'trace, 'grammar> {
         // because to reach that item we pushed `...p` from the start
         // of `X` and afterwards we expect to see `...s`.
         self.trace_graph
-            .add_edge(nonterminal, item, item.symbol_sets());
+            .add_edge(nonterminal.clone(), item, item.symbol_sets());
 
         // Walk back to the set of states S where we had:
         //
@@ -58,9 +58,10 @@ impl<'trace, 'grammar> Tracer<'trace, 'grammar> {
     // If we find that `...s` is potentially empty, then we haven't
     // actually found any context, and so we may have to keep
     // searching.
-    fn trace_reduce_from_state(&mut self, item_state: StateIndex, nonterminal: NonterminalString) // "Y"
+    fn trace_reduce_from_state(&mut self, item_state: StateIndex, nonterminal: &NonterminalString)
+    // "Y"
     {
-        if !self.visited_set.insert((item_state, nonterminal)) {
+        if !self.visited_set.insert((item_state, nonterminal.clone())) {
             return;
         }
         for pred_item in self.states[item_state.0]
@@ -89,7 +90,7 @@ impl<'trace, 'grammar> Tracer<'trace, 'grammar> {
                 //
                 // and stop.
                 self.trace_graph
-                    .add_edge(pred_item.to_lr0(), nonterminal, symbol_sets);
+                    .add_edge(pred_item.to_lr0(), nonterminal.clone(), symbol_sets);
             } else {
                 // Add an edge
                 //
@@ -98,8 +99,8 @@ impl<'trace, 'grammar> Tracer<'trace, 'grammar> {
                 // because we can reduce by consuming `...p`
                 // tokens, and continue tracing.
                 self.trace_graph.add_edge(
-                    pred_item.production.nonterminal,
-                    nonterminal,
+                    pred_item.production.nonterminal.clone(),
+                    nonterminal.clone(),
                     symbol_sets,
                 );
 

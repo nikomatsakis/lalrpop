@@ -1,4 +1,4 @@
-use intern::intern;
+use string_cache::DefaultAtom as Atom;
 use grammar::repr::NonterminalString;
 use normalize::lower_helper;
 use parser;
@@ -46,7 +46,7 @@ fn test_inline_order() {
 "#,
     ).unwrap();
     let grammar = lower_helper(&Session::test(), grammar, true).unwrap();
-    let a = NonterminalString(intern("A"));
-    let c = NonterminalString(intern("C"));
+    let a = NonterminalString(Atom::from("A"));
+    let c = NonterminalString(Atom::from("C"));
     assert_eq!(inline_order(&grammar).unwrap(), vec![a, c]);
 }

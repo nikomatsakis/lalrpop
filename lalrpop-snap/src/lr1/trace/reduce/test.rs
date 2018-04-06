@@ -1,4 +1,4 @@
-use intern::intern;
+use string_cache::DefaultAtom as Atom;
 use grammar::repr::*;
 use lr1::build_states;
 use lr1::core::Item;
@@ -12,11 +12,11 @@ use tls::Tls;
 use super::super::Tracer;
 
 fn nt(t: &str) -> NonterminalString {
-    NonterminalString(intern(t))
+    NonterminalString(Atom::from(t))
 }
 
 fn term(t: &str) -> TerminalString {
-    TerminalString::quoted(intern(t))
+    TerminalString::quoted(Atom::from(t))
 }
 
 macro_rules! terms {
@@ -74,7 +74,7 @@ fn backtrace1() {
         .items
         .vec
         .iter()
-        .filter(|item| item.lookahead.contains(semi))
+        .filter(|item| item.lookahead.contains(&semi))
         .next()
         .unwrap();
 
@@ -290,7 +290,7 @@ fn backtrace_filter() {
         .items
         .vec
         .iter()
-        .filter(|item| item.lookahead.contains(semi))
+        .filter(|item| item.lookahead.contains(&semi))
         .next()
         .unwrap();
 

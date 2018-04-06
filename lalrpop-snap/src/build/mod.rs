@@ -18,7 +18,7 @@ use tls::Tls;
 use tok;
 
 use std::fs;
-use std::io::{self, Write};
+use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::rc::Rc;
@@ -27,6 +27,14 @@ mod action;
 mod fake_term;
 
 use self::fake_term::FakeTerminal;
+
+const LALRPOP_VERSION_HEADER: &'static str = concat!(
+    "// auto-generated: \"",
+    env!("CARGO_PKG_NAME"),
+    " ",
+    env!("CARGO_PKG_VERSION"),
+    "\""
+);
 
 pub fn process_dir<P: AsRef<Path>>(session: Rc<Session>, root_dir: P) -> io::Result<()> {
     let lalrpop_files = try!(lalrpop_files(root_dir));
@@ -108,6 +116,7 @@ fn process_file_into(
             let grammar = try!(parse_and_normalize_grammar(&session, &file_text));
             let buffer = try!(emit_recursive_ascent(&session, &grammar, &report_file));
             let mut output_file = try!(fs::File::create(&rs_file));
+            try!(writeln!(output_file, "{}", LALRPOP_VERSION_HEADER));
             try!(output_file.write_all(&buffer));
         }
 
@@ -133,7 +142,11 @@ fn needs_rebuild(lalrpop_file: &Path, rs_file: &Path) -> io::Result<bool> {
     return match fs::metadata(&rs_file) {
         Ok(rs_metadata) => {
             let lalrpop_metadata = try!(fs::metadata(&lalrpop_file));
-            Ok(compare_modification_times(&lalrpop_metadata, &rs_metadata))
+            if compare_modification_times(&lalrpop_metadata, &rs_metadata) {
+                return Ok(true);
+            }
+
+            compare_lalrpop_version(rs_file)
         }
         Err(e) => match e.kind() {
             io::ErrorKind::NotFound => Ok(true),
@@ -165,6 +178,14 @@ fn needs_rebuild(lalrpop_file: &Path, rs_file: &Path) -> io::Result<bool> {
         rs_metadata: &fs::Metadata,
     ) -> bool {
         true
+    }
+
+    fn compare_lalrpop_version(rs_file: &Path) -> io::Result<bool> {
+        let mut input_str = String::new();
+        let mut f = io::BufReader::new(try!(fs::File::open(&rs_file)));
+        try!(f.read_line(&mut input_str));
+
+        Ok(input_str.trim() != LALRPOP_VERSION_HEADER)
     }
 }
 
@@ -229,7 +250,7 @@ fn parse_and_normalize_grammar(session: &Session, file_text: &FileText) -> io::R
             token: Some((lo, _, hi)),
             expected,
         }) => {
-            assert!(expected.is_empty()); // didn't implement this yet :)
+            let _ = expected; // didn't implement this yet :)
             let text = &file_text.text()[lo..hi];
             report_error(
                 &file_text,
@@ -257,6 +278,7 @@ fn parse_and_normalize_grammar(session: &Session, file_text: &FileText) -> io::R
                 tok::ErrorCode::UnterminatedCharacterLiteral => {
                     "unterminated character literal; missing `'`?"
                 }
+                tok::ErrorCode::UnterminatedAttribute => "unterminated #! attribute; missing `]`?",
                 tok::ErrorCode::ExpectedStringLiteral => "expected string literal; missing `\"`?",
                 tok::ErrorCode::UnterminatedCode => {
                     "unterminated code block; perhaps a missing `;`, `)`, `]` or `}`?"
@@ -317,6 +339,13 @@ fn report_content(content: &Content) -> term::Result<()> {
     canvas.write_to(&mut stdout)
 }
 
+fn emit_module_attributes<W: Write>(
+    grammar: &r::Grammar,
+    rust: &mut RustWrite<W>,
+) -> io::Result<()> {
+    rust.write_module_attributes(grammar)
+}
+
 fn emit_uses<W: Write>(grammar: &r::Grammar, rust: &mut RustWrite<W>) -> io::Result<()> {
     rust.write_uses("", grammar)
 }
@@ -347,6 +376,7 @@ fn emit_recursive_ascent(
     // includes things like `super::` it will resolve in the natural
     // way.
 
+    try!(emit_module_attributes(grammar, &mut rust));
     try!(emit_uses(grammar, &mut rust));
 
     if grammar.start_nonterminals.is_empty() {
@@ -354,7 +384,7 @@ fn emit_recursive_ascent(
         exit(1);
     }
 
-    for (&user_nt, &start_nt) in &grammar.start_nonterminals {
+    for (user_nt, start_nt) in &grammar.start_nonterminals {
         // We generate these, so there should always be exactly 1
         // production. Otherwise the LR(1) algorithm doesn't know
         // where to stop!
@@ -369,7 +399,7 @@ fn emit_recursive_ascent(
 
         let _lr1_tls = lr1::Lr1Tls::install(grammar.terminals.clone());
 
-        let lr1result = lr1::build_states(&grammar, start_nt);
+        let lr1result = lr1::build_states(&grammar, start_nt.clone());
         if session.emit_report {
             let mut output_report_file = try!(fs::File::create(&report_file));
             try!(lr1::generate_report(&mut output_report_file, &lr1result));
@@ -387,33 +417,34 @@ fn emit_recursive_ascent(
         match grammar.algorithm.codegen {
             r::LrCodeGeneration::RecursiveAscent => try!(lr1::codegen::ascent::compile(
                 &grammar,
-                user_nt,
-                start_nt,
+                user_nt.clone(),
+                start_nt.clone(),
                 &states,
                 "super",
-                &mut rust
+                &mut rust,
             )),
             r::LrCodeGeneration::TableDriven => try!(lr1::codegen::parse_table::compile(
                 &grammar,
-                user_nt,
-                start_nt,
+                user_nt.clone(),
+                start_nt.clone(),
                 &states,
                 "super",
-                &mut rust
+                &mut rust,
             )),
 
             r::LrCodeGeneration::TestAll => try!(lr1::codegen::test_all::compile(
                 &grammar,
-                user_nt,
-                start_nt,
+                user_nt.clone(),
+                start_nt.clone(),
                 &states,
-                &mut rust
+                &mut rust,
             )),
         }
 
         rust!(
             rust,
-            "pub use self::{}parse{}::parse_{};",
+            "{}use self::{}parse{}::{}Parser;",
+            grammar.nonterminals[&user_nt].visibility,
             grammar.prefix,
             start_nt,
             user_nt
@@ -422,6 +453,7 @@ fn emit_recursive_ascent(
 
     if let Some(ref intern_token) = grammar.intern_token {
         try!(intern_token::compile(&grammar, intern_token, &mut rust));
+        rust!(rust, "pub use self::{}intern_token::Token;", grammar.prefix);
     }
 
     try!(action::emit_action_code(grammar, &mut rust));
@@ -448,7 +480,7 @@ fn emit_to_triple_trait<W: Write>(grammar: &r::Grammar, rust: &mut RustWrite<W>)
         rust,
         "pub trait {}ToTriple<{}> {{",
         grammar.prefix,
-        user_type_parameters
+        user_type_parameters,
     );
     rust!(rust, "type Error;");
     rust!(
@@ -456,7 +488,7 @@ fn emit_to_triple_trait<W: Write>(grammar: &r::Grammar, rust: &mut RustWrite<W>)
         "fn to_triple(value: Self) -> Result<({},{},{}),Self::Error>;",
         L,
         T,
-        L
+        L,
     );
     rust!(rust, "}}");
 
@@ -470,7 +502,7 @@ fn emit_to_triple_trait<W: Write>(grammar: &r::Grammar, rust: &mut RustWrite<W>)
             user_type_parameters,
             L,
             T,
-            L
+            L,
         );
         rust!(rust, "type Error = {};", E);
         rust!(
@@ -479,7 +511,7 @@ fn emit_to_triple_trait<W: Write>(grammar: &r::Grammar, rust: &mut RustWrite<W>)
             L,
             T,
             L,
-            E
+            E,
         );
         rust!(rust, "Ok(value)");
         rust!(rust, "}}");
@@ -494,7 +526,7 @@ fn emit_to_triple_trait<W: Write>(grammar: &r::Grammar, rust: &mut RustWrite<W>)
             L,
             T,
             L,
-            E
+            E,
         );
         rust!(rust, "type Error = {};", E);
         rust!(
@@ -503,7 +535,7 @@ fn emit_to_triple_trait<W: Write>(grammar: &r::Grammar, rust: &mut RustWrite<W>)
             L,
             T,
             L,
-            E
+            E,
         );
         rust!(rust, "value");
         rust!(rust, "}}");
@@ -515,14 +547,14 @@ fn emit_to_triple_trait<W: Write>(grammar: &r::Grammar, rust: &mut RustWrite<W>)
             user_type_parameters,
             grammar.prefix,
             user_type_parameters,
-            T
+            T,
         );
         rust!(rust, "type Error = {};", E);
         rust!(
             rust,
             "fn to_triple(value: Self) -> Result<((),{},()),{}> {{",
             T,
-            E
+            E,
         );
         rust!(rust, "Ok(((), value, ()))");
         rust!(rust, "}}");
@@ -535,14 +567,14 @@ fn emit_to_triple_trait<W: Write>(grammar: &r::Grammar, rust: &mut RustWrite<W>)
             grammar.prefix,
             user_type_parameters,
             T,
-            E
+            E,
         );
         rust!(rust, "type Error = {};", E);
         rust!(
             rust,
             "fn to_triple(value: Self) -> Result<((),{},()),{}> {{",
             T,
-            E
+            E,
         );
         rust!(rust, "value.map(|v| ((), v, ()))");
         rust!(rust, "}}");

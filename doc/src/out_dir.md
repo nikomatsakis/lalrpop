@@ -6,7 +6,7 @@ module tree. This can be done through the following configuration:
 extern crate lalrpop;
 
 fn main() {
-    Configuration::new()
+    lalrpop::Configuration::new()
         .use_cargo_dir_conventions()
         .process();
 }

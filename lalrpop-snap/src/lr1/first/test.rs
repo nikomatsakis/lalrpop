@@ -1,4 +1,4 @@
-use intern::intern;
+use string_cache::DefaultAtom as Atom;
 use grammar::repr::*;
 use lr1::lookahead::{Token, TokenSet};
 use lr1::lookahead::Token::EOF;
@@ -7,15 +7,15 @@ use test_util::normalized_grammar;
 use super::FirstSets;
 
 pub fn nt(t: &str) -> Symbol {
-    Symbol::Nonterminal(NonterminalString(intern(t)))
+    Symbol::Nonterminal(NonterminalString(Atom::from(t)))
 }
 
 pub fn term(t: &str) -> Symbol {
-    Symbol::Terminal(TerminalString::quoted(intern(t)))
+    Symbol::Terminal(TerminalString::quoted(Atom::from(t)))
 }
 
 fn la(t: &str) -> Token {
-    Token::Terminal(TerminalString::quoted(intern(t)))
+    Token::Terminal(TerminalString::quoted(Atom::from(t)))
 }
 
 fn first0(first: &FirstSets, symbols: &[Symbol]) -> Vec<Token> {

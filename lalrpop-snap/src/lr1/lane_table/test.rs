@@ -1,4 +1,4 @@
-use intern::intern;
+use string_cache::DefaultAtom as Atom;
 use grammar::repr::*;
 use test_util::{expect_debug, normalized_grammar};
 use lr1::build;
@@ -15,7 +15,7 @@ use super::table::*;
 
 macro_rules! tokens {
     ($($x:expr),*) => {
-        vec![$(TerminalString::quoted(intern($x))),*]
+        vec![$(TerminalString::quoted(Atom::from($x))),*]
     }
 }
 
@@ -28,11 +28,11 @@ fn sym(t: &str) -> Symbol {
 }
 
 fn term(t: &str) -> TerminalString {
-    TerminalString::quoted(intern(t))
+    TerminalString::quoted(Atom::from(t))
 }
 
 fn nt(t: &str) -> NonterminalString {
-    NonterminalString(intern(t))
+    NonterminalString(Atom::from(t))
 }
 
 fn traverse(states: &[LR0State], tokens: &[&str]) -> StateIndex {
@@ -134,11 +134,11 @@ fn build_table<'grammar>(
         &state_graph,
         conflicting_items.len(),
     );
-    for (i, &conflicting_item) in conflicting_items.iter().enumerate() {
+    for (i, conflicting_item) in conflicting_items.iter().enumerate() {
         tracer.start_trace(
             inconsistent_state.index,
             ConflictIndex::new(i),
-            conflicting_item,
+            conflicting_item.clone(),
         );
     }
 

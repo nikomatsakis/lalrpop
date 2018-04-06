@@ -920,7 +920,26 @@ impl<'ascent, 'grammar, W: Write> CodeGenerator<'ascent, 'grammar, W, TableDrive
             .zip(1..)
         {
             rust!(self.out, "{} => {{", index);
+            // In debug builds LLVM is not very good at reusing stack space which makes this
+            // reduce function take up O(number of states) space. By wrapping each reduce action in
+            // an immediately called closure each reduction takes place in their own function
+            // context which ends up reducing the stack space used.
+
+            // Fallible actions and the start symbol may do early returns so we avoid wrapping
+            // those
+            let is_fallible = self.grammar.action_is_fallible(production.action);
+            let reduce_stack_space = !is_fallible && production.nonterminal != self.start_symbol;
+
+            if reduce_stack_space {
+                rust!(self.out, "(|| {{");
+            }
+
             try!(self.emit_reduce_action(production));
+
+            if reduce_stack_space {
+                rust!(self.out, "}})()");
+            }
+
             rust!(self.out, "}}");
         }
         rust!(

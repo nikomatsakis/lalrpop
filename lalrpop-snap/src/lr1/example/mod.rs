@@ -49,7 +49,7 @@ pub struct Example {
     pub reductions: Vec<Reduction>,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExampleSymbol {
     Symbol(Symbol),
     Epsilon,
@@ -62,7 +62,7 @@ pub struct ExampleStyles {
     pub after_cursor: Style,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct Reduction {
     pub start: usize,
     pub end: usize,
@@ -78,7 +78,7 @@ impl Example {
         self.symbols
             .iter()
             .map(|s| match *s {
-                ExampleSymbol::Symbol(s) => format!("{}", s).chars().count(),
+                ExampleSymbol::Symbol(ref s) => format!("{}", s).chars().count(),
                 ExampleSymbol::Epsilon => 1, // display as " "
             })
             .chain(Some(0))
@@ -105,8 +105,8 @@ impl Example {
                 }
             };
 
-            if let &ExampleSymbol::Symbol(s) = symbol {
-                builder = builder.push(s).styled(style);
+            if let &ExampleSymbol::Symbol(ref s) = symbol {
+                builder = builder.push(s.clone()).styled(style);
             }
         }
 
@@ -171,7 +171,7 @@ impl Example {
         for &Reduction {
             start,
             end,
-            nonterminal,
+            ref nonterminal,
         } in &self.reductions
         {
             let nt_len = format!("{}", nonterminal).chars().count();
@@ -334,7 +334,7 @@ impl Example {
 
             let column = positions[index];
             match *ex_symbol {
-                ExampleSymbol::Symbol(Symbol::Terminal(term)) => {
+                ExampleSymbol::Symbol(Symbol::Terminal(ref term)) => {
                     view.write_chars(
                         0,
                         column,
@@ -342,7 +342,7 @@ impl Example {
                         style.with(session.terminal_symbol),
                     );
                 }
-                ExampleSymbol::Symbol(Symbol::Nonterminal(nt)) => {
+                ExampleSymbol::Symbol(Symbol::Nonterminal(ref nt)) => {
                     view.write_chars(
                         0,
                         column,

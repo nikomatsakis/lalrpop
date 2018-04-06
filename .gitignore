@@ -25,6 +25,7 @@ lalrpop-test/src/error_recovery_issue_240.rs
 lalrpop-test/src/error_recovery_lock_in.rs
 lalrpop-test/src/error_recovery_lalr_loop.rs
 lalrpop-test/src/error_recovery_span.rs
+lalrpop-test/src/error_recovery_type_in_macro.rs
 lalrpop-test/src/expr.rs
 lalrpop-test/src/expr_arena.rs
 lalrpop-test/src/expr_generic.rs
@@ -45,6 +46,7 @@ lalrpop-test/src/unit.rs
 lalrpop-test/src/use_super.rs
 lalrpop-test/src/no_clone_tok.rs
 lalrpop-test/src/partial_parse.rs
+lalrpop-test/src/match_alternatives.rs
 lalrpop-test/src/match_section.rs
 lalrpop-test/src/expr_module_attributes.rs
 lalrpop-test/src/associated_types.rs

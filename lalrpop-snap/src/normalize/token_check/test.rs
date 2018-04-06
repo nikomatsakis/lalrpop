@@ -23,8 +23,8 @@ fn check_intern_token(grammar: &str, expected_tokens: Vec<(&'static str, &'stati
     for (input, expected_user_name) in expected_tokens {
         let actual_user_name =
             interpret::interpret(&intern_token.dfa, input).map(|(index, text)| {
-                let user_name = intern_token.match_entries[index.index()].user_name;
-                (user_name, text)
+                let user_name = &intern_token.match_entries[index.index()].user_name;
+                (user_name.clone(), text)
             });
         let actual_user_name = format!("{:?}", actual_user_name);
         if expected_user_name != actual_user_name {

@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use intern::intern;
+use string_cache::DefaultAtom as Atom;
 use normalize::{NormError, NormResult};
 use petgraph::graph::{Graph, NodeIndex};
 use grammar::consts::INLINE;
@@ -46,11 +46,11 @@ impl<'grammar> NonterminalGraph<'grammar> {
     }
 
     fn create_nodes(&mut self) {
-        let inline = intern(INLINE);
-        for (&name, data) in &self.grammar.nonterminals {
+        let inline = Atom::from(INLINE);
+        for (name, data) in &self.grammar.nonterminals {
             if data.annotations.iter().any(|a| a.id == inline) {
-                let index = self.graph.add_node(name);
-                self.nonterminal_map.insert(name, index);
+                let index = self.graph.add_node(name.clone());
+                self.nonterminal_map.insert(name.clone(), index);
             }
         }
     }
@@ -66,10 +66,10 @@ impl<'grammar> NonterminalGraph<'grammar> {
                 None => continue, // this is not an inlined nonterminal
             };
 
-            for &symbol in &production.symbols {
-                match symbol {
-                    Symbol::Nonterminal(to) => {
-                        if let Some(&to_index) = self.nonterminal_map.get(&to) {
+            for symbol in &production.symbols {
+                match *symbol {
+                    Symbol::Nonterminal(ref to) => {
+                        if let Some(&to_index) = self.nonterminal_map.get(to) {
                             self.graph.add_edge(from_index, to_index, ());
                         }
                     }
@@ -94,7 +94,7 @@ impl<'grammar> NonterminalGraph<'grammar> {
         result: &mut Vec<NonterminalString>,
         source: NodeIndex,
     ) -> NormResult<()> {
-        let nt = *self.graph.node_weight(source).unwrap();
+        let nt = self.graph.node_weight(source).unwrap();
 
         match states[source.index()] {
             WalkState::NotVisited => {
@@ -103,7 +103,7 @@ impl<'grammar> NonterminalGraph<'grammar> {
                     try!(self.walk(states, result, target));
                 }
                 states[source.index()] = WalkState::Visited;
-                result.push(nt);
+                result.push(nt.clone());
                 Ok(())
             }
             WalkState::Visited => Ok(()),

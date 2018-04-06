@@ -1,4 +1,4 @@
-use intern::intern;
+use string_cache::DefaultAtom as Atom;
 use grammar::repr::*;
 use lr1::core::*;
 use test_util::expect_debug;
@@ -6,7 +6,7 @@ use tls::Tls;
 
 macro_rules! nt {
     ($x:ident) => {
-        NonterminalString(intern(stringify!($x)))
+        NonterminalString(Atom::from(stringify!($x)))
     }
 }
 

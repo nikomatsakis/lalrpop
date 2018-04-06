@@ -24,22 +24,23 @@ look something like:
 ```
 [package]
 name = "calculator"
-version = "0.14.0"
+version = "0.1.0"
 authors = ["Niko Matsakis <niko@alum.mit.edu>"]
-build = "build.rs" # <-- We added this and everything after!
 
-[build-dependencies]
-lalrpop = "0.14.0"
+[build-dependencies] # <-- We added this and everything after!
+lalrpop = "0.15.1"
 
 [dependencies]
-lalrpop-util = "0.14.0"
+lalrpop-util = "0.15.1"
 regex = "0.2.1"
 ```
 
-Adding a `build` directive to the `[package]` section tells Cargo to
-run `build.rs` as a pre-processing step. The `[build-dependencies]`
-section that specifies the dependencies for `build.rs` -- in this
+Cargo can run [build scripts] as a pre-processing step,
+named `build.rs` by default. The `[build-dependencies]`
+section specifies the dependencies for build scripts -- in this
 case, just LALRPOP.
+
+[build scripts]: https://doc.rust-lang.org/cargo/reference/build-scripts.html
 
 The `[dependencies]` section describes the dependencies that LALRPOP
 needs at runtime. All LALRPOP parsers require at least the

@@ -139,9 +139,14 @@ two matches of equal length, it prefers the fixed string:
 ```rust
 #[test]
 fn calculator2b() {
-    assert_eq!(calculator2b::parse_Term("33").unwrap(), "33");
-    assert_eq!(calculator2b::parse_Term("(22)").unwrap(), "Twenty-two!");
-    assert_eq!(calculator2b::parse_Term("(222)").unwrap(), "222");
+    let result = calculator2b::TermParser::new().parse("33").unwrap();
+    assert_eq!(result, "33");
+
+    let result = calculator2b::TermParser::new().parse("(22)").unwrap();
+    assert_eq!(result, "Twenty-two!");
+
+    let result = calculator2b::TermParser::new().parse("(222)").unwrap();
+    assert_eq!(result, "222");
 }
 ```
 
@@ -226,12 +231,20 @@ unit test a bit to include some identifier examples::
 #[test]
 fn calculator2b() {
     // These will all work:
-    assert_eq!(calculator2b::parse_Term("33").unwrap(), "33");
-    assert_eq!(calculator2b::parse_Term("foo33").unwrap(), "Id(foo33)");
-    assert_eq!(calculator2b::parse_Term("(foo33)").unwrap(), "Id(foo33)");
+
+    let result = calculator2b::TermParser::new().parse("33").unwrap();
+    assert_eq!(result, "33");
+
+    let result = calculator2b::TermParser::new().parse("foo33").unwrap();
+    assert_eq!(result, "Id(foo33)");
+
+    let result = calculator2b::TermParser::new().parse("(foo33)").unwrap();
+    assert_eq!(result, "Id(foo33)");
     
-    // This line will fail:
-    assert_eq!(calculator2b::parse_Term("(22)").unwrap(), "Twenty-two!");
+    // This one will fail:
+
+    let result = calculator2b::TermParser::new().parse("(22)").unwrap();
+    assert_eq!(result, "Twenty-two!");
 }
 ```
 

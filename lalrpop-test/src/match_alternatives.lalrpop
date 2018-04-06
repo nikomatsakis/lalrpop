@@ -1,0 +1,9 @@
+grammar;
+
+pub File: String = bare_key bool => format!("{} {}", <>);
+
+match {
+    r"false|true" => bool,
+} else {
+    r"[a-z]+" => bare_key,
+}

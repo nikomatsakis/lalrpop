@@ -54,7 +54,7 @@ fn match_complex() {
                 MatchItem::Mapped(ref sym, ref mapping, _) => {
                     assert_eq!(format!("{:?}", sym), "r#\"(?i)begin\"#");
                     assert_eq!(format!("{}", mapping), "\"BEGIN\"");
-                },
+                }
                 _ => panic!("expected MatchItem::Mapped, but was: {:?}", item00),
             };
             // r"(?i)end" => "END",
@@ -63,7 +63,7 @@ fn match_complex() {
                 MatchItem::Mapped(ref sym, ref mapping, _) => {
                     assert_eq!(format!("{:?}", sym), "r#\"(?i)end\"#");
                     assert_eq!(format!("{}", mapping), "\"END\"");
-                },
+                }
                 _ => panic!("expected MatchItem::Mapped, but was: {:?}", item00),
             };
             // else { ... }
@@ -74,7 +74,7 @@ fn match_complex() {
                 MatchItem::Mapped(ref sym, ref mapping, _) => {
                     assert_eq!(format!("{:?}", sym), "r#\"[a-zA-Z_][a-zA-Z0-9_]*\"#");
                     assert_eq!(format!("{}", mapping), "IDENTIFIER");
-                },
+                }
                 _ => panic!("expected MatchItem::Mapped, but was: {:?}", item10),
             };
             // else { ... }
@@ -84,7 +84,7 @@ fn match_complex() {
             match *item20 {
                 MatchItem::Unmapped(ref sym, _) => {
                     assert_eq!(format!("{:?}", sym), "\"other\"");
-                },
+                }
                 _ => panic!("expected MatchItem::Unmapped, but was: {:?}", item20),
             };
             // _
@@ -93,7 +93,7 @@ fn match_complex() {
                 MatchItem::CatchAll(_) => (),
                 _ => panic!("expected MatchItem::CatchAll, but was: {:?}", item20),
             };
-        },
+        }
         _ => panic!("expected MatchToken, but was: {:?}", first_item),
     }
 }

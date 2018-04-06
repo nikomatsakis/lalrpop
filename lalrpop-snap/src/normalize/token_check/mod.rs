@@ -7,7 +7,7 @@
 
 use super::{NormError, NormResult};
 
-use intern::{self, intern};
+use string_cache::DefaultAtom as Atom;
 use lexer::re;
 use lexer::dfa::{self, DFAConstructionError, Precedence};
 use lexer::nfa::NFAConstructionError::*;
@@ -30,7 +30,7 @@ pub fn validate(mut grammar: Grammar) -> NormResult<Grammar> {
                 conversions: enum_token
                     .conversions
                     .iter()
-                    .map(|conversion| conversion.from)
+                    .map(|conversion| conversion.from.clone())
                     .collect(),
             }
         } else {
@@ -123,16 +123,21 @@ impl MatchBlock {
                 let precedence = &match_token.contents.len() - idx;
                 for item in &mc.items {
                     match *item {
-                        MatchItem::Unmapped(sym, span) => {
+                        MatchItem::Unmapped(ref sym, span) => {
                             match_block.add_match_entry(
                                 precedence,
-                                sym,
-                                TerminalString::Literal(sym),
+                                sym.clone(),
+                                TerminalString::Literal(sym.clone()),
                                 span,
                             )?;
                         }
-                        MatchItem::Mapped(sym, user, span) => {
-                            match_block.add_match_entry(precedence, sym, user, span)?;
+                        MatchItem::Mapped(ref sym, ref user, span) => {
+                            match_block.add_match_entry(
+                                precedence,
+                                sym.clone(),
+                                user.clone(),
+                                span,
+                            )?;
                         }
                         MatchItem::CatchAll(_) => {
                             match_block.catch_all = true;
@@ -154,12 +159,12 @@ impl MatchBlock {
         user_name: TerminalString,
         span: Span,
     ) -> NormResult<()> {
-        if let Some(_old_span) = self.spans.insert(sym, span) {
+        if let Some(_old_span) = self.spans.insert(sym.clone(), span) {
             return_err!(span, "multiple match entries for `{}`", sym);
         }
 
         // NB: It's legal for multiple regex to produce same terminal.
-        self.match_user_names.insert(user_name);
+        self.match_user_names.insert(user_name.clone());
 
         self.match_entries.push(MatchEntry {
             precedence: match_group_precedence * 2 + sym.base_precedence(),
@@ -172,7 +177,7 @@ impl MatchBlock {
     fn add_literal_from_grammar(&mut self, sym: TerminalLiteral, span: Span) -> NormResult<()> {
         // Already saw this literal, maybe in a match entry, maybe in the grammar.
         if self.match_user_names
-            .contains(&TerminalString::Literal(sym))
+            .contains(&TerminalString::Literal(sym.clone()))
         {
             return Ok(());
         }
@@ -185,12 +190,13 @@ impl MatchBlock {
             );
         }
 
-        self.match_user_names.insert(TerminalString::Literal(sym));
+        self.match_user_names
+            .insert(TerminalString::Literal(sym.clone()));
 
         self.match_entries.push(MatchEntry {
             precedence: sym.base_precedence(),
-            match_literal: sym,
-            user_name: TerminalString::Literal(sym),
+            match_literal: sym.clone(),
+            user_name: TerminalString::Literal(sym.clone()),
         });
 
         self.spans.insert(sym, span);
@@ -233,7 +239,7 @@ impl<'grammar> Validator<'grammar> {
             SymbolKind::Expr(ref expr) => {
                 try!(self.validate_expr(expr));
             }
-            SymbolKind::Terminal(term) => {
+            SymbolKind::Terminal(ref term) => {
                 try!(self.validate_terminal(symbol.span, term));
             }
             SymbolKind::Nonterminal(_) => {}
@@ -244,7 +250,7 @@ impl<'grammar> Validator<'grammar> {
                 try!(self.validate_symbol(sym));
             }
             SymbolKind::Lookahead | SymbolKind::Lookbehind | SymbolKind::Error => {}
-            SymbolKind::AmbiguousId(id) => {
+            SymbolKind::AmbiguousId(ref id) => {
                 panic!("ambiguous id `{}` encountered after name resolution", id)
             }
             SymbolKind::Macro(..) => {
@@ -255,12 +261,12 @@ impl<'grammar> Validator<'grammar> {
         Ok(())
     }
 
-    fn validate_terminal(&mut self, span: Span, term: TerminalString) -> NormResult<()> {
+    fn validate_terminal(&mut self, span: Span, term: &TerminalString) -> NormResult<()> {
         match self.mode {
             // If there is an extern token definition, validate that
             // this terminal has a defined conversion.
             TokenMode::Extern { ref conversions } => {
-                if !conversions.contains(&term) {
+                if !conversions.contains(term) {
                     return_err!(
                         span,
                         "terminal `{}` does not have a pattern defined for it",
@@ -274,14 +280,16 @@ impl<'grammar> Validator<'grammar> {
             TokenMode::Internal {
                 ref mut match_block,
             } => {
-                match term {
+                match *term {
                     TerminalString::Bare(_) => assert!(
-                        match_block.match_user_names.contains(&term),
+                        match_block.match_user_names.contains(term),
                         "bare terminal without match entry: {}",
                         term
                     ),
 
-                    TerminalString::Literal(l) => match_block.add_literal_from_grammar(l, span)?,
+                    TerminalString::Literal(ref l) => {
+                        match_block.add_literal_from_grammar(l.clone(), span)?
+                    }
 
                     // Error is a builtin terminal that always exists
                     TerminalString::Error => (),
@@ -311,15 +319,15 @@ fn construct(grammar: &mut Grammar, match_block: MatchBlock) -> NormResult<()> {
     // one of precedences, that are parallel with `literals`.
     let mut regexs = Vec::with_capacity(match_entries.len());
     let mut precedences = Vec::with_capacity(match_entries.len());
-    try!(intern::read(|interner| {
+    try!({
         for match_entry in &match_entries {
             precedences.push(Precedence(match_entry.precedence));
             match match_entry.match_literal {
-                TerminalLiteral::Quoted(s) => {
-                    regexs.push(re::parse_literal(interner.data(s)));
+                TerminalLiteral::Quoted(ref s) => {
+                    regexs.push(re::parse_literal(&s));
                 }
-                TerminalLiteral::Regex(s) => {
-                    match re::parse_regex(interner.data(s)) {
+                TerminalLiteral::Regex(ref s) => {
+                    match re::parse_regex(&s) {
                         Ok(regex) => regexs.push(regex),
                         Err(error) => {
                             let literal_span = spans[&match_entry.match_literal];
@@ -333,7 +341,7 @@ fn construct(grammar: &mut Grammar, match_block: MatchBlock) -> NormResult<()> {
             }
         }
         Ok(())
-    }));
+    });
 
     let dfa = match dfa::build_dfa(&regexs, &precedences) {
         Ok(dfa) => dfa,
@@ -346,19 +354,19 @@ fn construct(grammar: &mut Grammar, match_block: MatchBlock) -> NormResult<()> {
                 TextBoundary => r#"text boundaries (`^` or `$`)"#,
                 ByteRegex => r#"byte-based matches"#,
             };
-            let literal = match_entries[index.index()].match_literal;
+            let literal = &match_entries[index.index()].match_literal;
             return_err!(
-                spans[&literal],
+                spans[literal],
                 "{} are not supported in regular expressions",
                 feature
             )
         }
         Err(DFAConstructionError::Ambiguity { match0, match1 }) => {
-            let literal0 = match_entries[match0.index()].match_literal;
-            let literal1 = match_entries[match1.index()].match_literal;
+            let literal0 = &match_entries[match0.index()].match_literal;
+            let literal1 = &match_entries[match1.index()].match_literal;
             // FIXME(#88) -- it'd be nice to give an example here
             return_err!(
-                spans[&literal0],
+                spans[literal0],
                 "ambiguity detected between the terminal `{}` and the terminal `{}`",
                 literal0,
                 literal1
@@ -373,10 +381,10 @@ fn construct(grammar: &mut Grammar, match_block: MatchBlock) -> NormResult<()> {
 
     // we need to inject a `'input` lifetime and `input: &'input str` parameter as well:
 
-    let input_lifetime = intern(INPUT_LIFETIME);
+    let input_lifetime = Atom::from(INPUT_LIFETIME);
     for parameter in &grammar.type_parameters {
         match *parameter {
-            TypeParameter::Lifetime(i) if i == input_lifetime => {
+            TypeParameter::Lifetime(ref i) if *i == input_lifetime => {
                 return_err!(
                     grammar.span,
                     "since there is no external token enum specified, \
@@ -387,7 +395,7 @@ fn construct(grammar: &mut Grammar, match_block: MatchBlock) -> NormResult<()> {
         }
     }
 
-    let input_parameter = intern(INPUT_PARAMETER);
+    let input_parameter = Atom::from(INPUT_PARAMETER);
     for parameter in &grammar.parameters {
         if parameter.name == input_parameter {
             return_err!(
@@ -400,14 +408,14 @@ fn construct(grammar: &mut Grammar, match_block: MatchBlock) -> NormResult<()> {
 
     grammar
         .type_parameters
-        .insert(0, TypeParameter::Lifetime(input_lifetime));
+        .insert(0, TypeParameter::Lifetime(input_lifetime.clone()));
 
     let parameter = Parameter {
         name: input_parameter,
         ty: TypeRef::Ref {
             lifetime: Some(input_lifetime),
             mutable: false,
-            referent: Box::new(TypeRef::Id(intern("str"))),
+            referent: Box::new(TypeRef::Id(Atom::from("str"))),
         },
     };
     grammar.parameters.push(parameter);
