@@ -14,7 +14,6 @@ doc/calculator/src/calculator6.rs
 doc/pascal/lalrpop/src/pascal.rs
 doc/whitespace/src/parser.rs
 
-lalrpop-test/src/allow_catch_all.rs
 lalrpop-test/src/error.rs
 lalrpop-test/src/error_issue_113.rs
 lalrpop-test/src/error_issue_278.rs
