@@ -13,6 +13,8 @@ doc/calculator/src/calculator6.rs
 doc/pascal/lalrpop/src/pascal.rs
 doc/whitespace/src/parser.rs
 
+lalrpop-test/src/empty.rs
+lalrpop-test/src/empty_tok.rs
 lalrpop-test/src/error.rs
 lalrpop-test/src/error_issue_113.rs
 lalrpop-test/src/error_issue_278.rs

@@ -452,6 +452,9 @@ impl<'ascent, 'grammar, W: Write> CodeGenerator<'ascent, 'grammar, W, TableDrive
                 .variant_names
                 .insert(Symbol::Nonterminal(nt.clone()), name.clone());
         }
+        if self.grammar.intern_token.is_some() {
+            rust!(self.out, "{}phantom_data(::std::marker::PhantomData<&'input ()>),", self.prefix);
+        }
         rust!(self.out, "}}");
         Ok(())
     }
