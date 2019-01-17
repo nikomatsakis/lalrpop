@@ -94,7 +94,6 @@ pub const START: NFAStateIndex = NFAStateIndex(2);
 #[derive(Debug, PartialEq, Eq)]
 pub enum NFAConstructionError {
     NamedCaptures,
-    NonGreedy,
     WordBoundary,
     LineBoundary,
     TextBoundary,
@@ -263,47 +262,42 @@ impl NFA {
             },
 
             HirKind::Repetition(ref r) => {
-                if !r.greedy {
-                    // currently we always report the longest match possible
-                    Err(NFAConstructionError::NonGreedy)
-                } else {
-                    match r.kind {
-                        RepetitionKind::ZeroOrOne => self.optional_expr(&r.hir, accept, reject),
-                        RepetitionKind::ZeroOrMore => self.star_expr(&r.hir, accept, reject),
-                        RepetitionKind::OneOrMore => self.plus_expr(&r.hir, accept, reject),
-                        RepetitionKind::Range(ref range) => {
-                            match *range {
-                                RepetitionRange::Exactly(c) => {
-                                    let mut s = accept;
-                                    for _ in 0..c {
-                                        s = self.expr(&r.hir, s, reject)?;
-                                    }
-                                    Ok(s)
+                match r.kind {
+                    RepetitionKind::ZeroOrOne => self.optional_expr(&r.hir, accept, reject),
+                    RepetitionKind::ZeroOrMore => self.star_expr(&r.hir, accept, reject),
+                    RepetitionKind::OneOrMore => self.plus_expr(&r.hir, accept, reject),
+                    RepetitionKind::Range(ref range) => {
+                        match *range {
+                            RepetitionRange::Exactly(c) => {
+                                let mut s = accept;
+                                for _ in 0..c {
+                                    s = self.expr(&r.hir, s, reject)?;
                                 }
-                                RepetitionRange::AtLeast(min) => {
-                                    // +---min times----+
-                                    // |                |
-                                    //
-                                    // [s0] --..e..-- [s1] --..e*..--> [accept]
-                                    //          |      |
-                                    //          |      v
-                                    //          +-> [reject]
-                                    let mut s = self.star_expr(&r.hir, accept, reject)?;
-                                    for _ in 0..min {
-                                        s = self.expr(&r.hir, s, reject)?;
-                                    }
-                                    Ok(s)
+                                Ok(s)
+                            }
+                            RepetitionRange::AtLeast(min) => {
+                                // +---min times----+
+                                // |                |
+                                //
+                                // [s0] --..e..-- [s1] --..e*..--> [accept]
+                                //          |      |
+                                //          |      v
+                                //          +-> [reject]
+                                let mut s = self.star_expr(&r.hir, accept, reject)?;
+                                for _ in 0..min {
+                                    s = self.expr(&r.hir, s, reject)?;
                                 }
-                                RepetitionRange::Bounded(min, max) => {
-                                    let mut s = accept;
-                                    for _ in min..max {
-                                        s = self.optional_expr(&r.hir, s, reject)?;
-                                    }
-                                    for _ in 0..min {
-                                        s = self.expr(&r.hir, s, reject)?;
-                                    }
-                                    Ok(s)
+                                Ok(s)
+                            }
+                            RepetitionRange::Bounded(min, max) => {
+                                let mut s = accept;
+                                for _ in min..max {
+                                    s = self.optional_expr(&r.hir, s, reject)?;
                                 }
+                                for _ in 0..min {
+                                    s = self.expr(&r.hir, s, reject)?;
+                                }
+                                Ok(s)
                             }
                         }
                     }
