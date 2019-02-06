@@ -163,6 +163,27 @@ fn match_catch_all() {
     assert!(validate_grammar(&grammar).is_ok())
 }
 
+/// Test that a `catch-all` can be use in the first `match` arm.
+/// Before the pull request to close [issue 325](https://github.com/lalrpop/lalrpop/issues/325),
+/// the usage of the `catch-all` symbol was not allowed in the first arm of a `match` block.
+fn match_catch_all_in_first_arm() {
+    let grammar = r#"
+        grammar;
+        match {
+            _
+        } else {
+            r"\w+"
+        }
+        pub Term = {
+            Num,
+            "(" <Term> ")",
+            r"\w+" => format!("Id({})", <>),
+        };
+        Num: String = r"[0-9]+" => <>.to_string();
+"#;
+    assert!(validate_grammar(&grammar).is_ok())
+}
+
 #[test]
 fn complex_match() {
     let grammar = r##"
