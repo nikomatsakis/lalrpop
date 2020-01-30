@@ -318,7 +318,7 @@ fn emit_module_attributes<W: Write>(
 }
 
 fn emit_uses<W: Write>(grammar: &r::Grammar, rust: &mut RustWrite<W>) -> io::Result<()> {
-    rust.write_uses("", grammar)
+    rust.write_uses(&format!("{}::", grammar.action_module), grammar)
 }
 
 fn emit_recursive_ascent(

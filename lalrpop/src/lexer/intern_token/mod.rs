@@ -58,7 +58,7 @@ pub fn compile<W: Write>(
     rust!(out, "#[cfg_attr(rustfmt, rustfmt_skip)]");
     rust!(out, "mod {}intern_token {{", prefix);
     rust!(out, "#![allow(unused_imports)]");
-    out.write_uses("", &grammar)?;
+    out.write_uses("super::", &grammar)?;
     rust!(out, "extern crate regex as {}regex;", prefix);
     rust!(out, "use std::fmt as {}fmt;", prefix);
     rust!(out, "");
