@@ -87,6 +87,8 @@ lalrpop_mod!(mut_name);
 /// test that uses `super` in paths in various places
 lalrpop_mod!(use_super);
 
+mod pub_in;
+
 /// Custom error type (issue #113)
 #[derive(Debug, PartialEq)]
 pub struct MyCustomError(char);
