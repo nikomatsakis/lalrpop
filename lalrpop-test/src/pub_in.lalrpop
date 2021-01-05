@@ -1,0 +1,14 @@
+grammar<'input>;
+
+use util::tok::Tok;
+
+extern {
+    enum Tok<'input> {
+        "(" => Tok::LParen,
+        ")" => Tok::RParen,
+    }
+}
+
+pub(in crate::pub_in::outer) S: i32 = {
+    "(" ")" => crate::ZERO
+};

@@ -368,6 +368,7 @@ pub struct Parameter {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Visibility {
     Pub(Option<Path>),
+    PubIn(Path),
     Priv,
 }
 
@@ -375,6 +376,7 @@ impl Visibility {
     pub fn is_pub(&self) -> bool {
         match *self {
             Visibility::Pub(_) => true,
+            Visibility::PubIn(_) => true,
             Visibility::Priv => false,
         }
     }
@@ -740,6 +742,7 @@ impl Display for Visibility {
         match *self {
             Visibility::Pub(Some(ref path)) => write!(fmt, "pub({}) ", path),
             Visibility::Pub(None) => write!(fmt, "pub "),
+            Visibility::PubIn(ref path) => write!(fmt, "pub(in {}) ", path),
             Visibility::Priv => Ok(()),
         }
     }
