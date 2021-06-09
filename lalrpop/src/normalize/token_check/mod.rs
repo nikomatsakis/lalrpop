@@ -356,7 +356,6 @@ fn construct(grammar: &mut Grammar, match_block: MatchBlock) -> NormResult<()> {
         Err(DFAConstructionError::NFAConstructionError { index, error }) => {
             let feature = match error {
                 NamedCaptures => r#"named captures (`(?P<foo>...)`)"#,
-                NonGreedy => r#""non-greedy" repetitions (`*?` or `+?`)"#,
                 WordBoundary => r#"word boundaries (`\b` or `\B`)"#,
                 LineBoundary => r#"line boundaries (`^` or `$`)"#,
                 TextBoundary => r#"text boundaries (`^` or `$`)"#,
