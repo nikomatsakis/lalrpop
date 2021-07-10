@@ -7,3 +7,6 @@ members = [
         "lalrpop-util",
         "lalrpop",
 ]
+exclude = [
+        "doc/linkchecker"
+]

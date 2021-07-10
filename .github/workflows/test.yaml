@@ -21,4 +21,16 @@ jobs:
           components: rustfmt
       - name: Run tests
         run: ./ci.sh
+  linkcheck:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - run: rustup update nightly && rustup default nightly
+    - run: rustup component add rust-docs
+    - run: sh ./tools/ci-install.sh
+    - run: |
+        cd doc/
+        curl -sSLo linkcheck.sh \
+          https://raw.githubusercontent.com/rust-lang/rust/master/src/tools/linkchecker/linkcheck.sh
+        sh linkcheck.sh book
 
