@@ -3,15 +3,15 @@ This is a tutorial for how to write a complete parser for a simple calculator us
 If you are unfamiliar with what a parser generator is, you should read [Crash course on parsers]
 first.
 
-- [Adding LALRPOP to your project](tutorial/001_adding_lalrpop.html)
-- [Parsing parenthesized numbers](tutorial/002_paren_numbers.html)
-- [Type inference](tutorial/003_type_inference.html)
-- [Handling full expressions](tutorial/004_full_expressions.html)
-- [Building ASTs](tutorial/005_building_asts.html)
-- [Macros](tutorial/006_macros.html)
-- [Fallible actions](tutorial/007_fallible_actions.html)
-- [Error recovery](tutorial/008_error_recovery.html)
-- [Passing state parameter](tutorial/009_state_parameter.html)
+- [Adding LALRPOP to your project](001_adding_lalrpop.html)
+- [Parsing parenthesized numbers](002_paren_numbers.html)
+- [Type inference](003_type_inference.html)
+- [Handling full expressions](004_full_expressions.html)
+- [Building ASTs](005_building_asts.html)
+- [Macros](006_macros.html)
+- [Fallible actions](007_fallible_actions.html)
+- [Error recovery](008_error_recovery.html)
+- [Passing state parameter](009_state_parameter.html)
 
 This tutorial is still incomplete. Here are some topics that I aim to
 cover when I get time to write about them:
